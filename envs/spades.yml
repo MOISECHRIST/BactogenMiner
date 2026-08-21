@@ -1,0 +1,7 @@
+name: spades_env
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - spades=4.3.0

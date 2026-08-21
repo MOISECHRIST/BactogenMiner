@@ -1,0 +1,7 @@
+name: assembly_qc
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - mlst=2.9

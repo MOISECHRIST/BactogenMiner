@@ -1,0 +1,8 @@
+name: assembly_qc
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - bandage=0.8.1
+  - quast=5.3.0
