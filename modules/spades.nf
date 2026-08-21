@@ -21,21 +21,29 @@ process SPADES{
     tuple val(sample_name), path(reads)
 
     output:
-    tuple val(sample_name), path("spades/scaffolds.fasta"), emit: scafolds
-    tuple val(sample_name), path("spades/assembly_graph.fastg"), emit: assembly_graph
+    tuple val(sample_name), path("spades/${sample_name}.fasta"), emit: scafolds
+    tuple val(sample_name), path("spades/${sample_name}.fastg"), emit: assembly_graph
 
     script:
     if (reads instanceof List && reads.size() == 2) {
         """
         mkdir spades
-        spades.py -1 '${reads[0]}' -2 '${reads[1]}' -o 'spades' \
+
+        spades.py -1 '${reads[0]}' -2 '${reads[1]}' -o 'spades' \\
         --threads '${task.cpus}'
+
+        mv spades/scaffolds.fasta 'spades/${sample_name}.fasta'
+        mv spades/assembly_graph.fastg 'spades/${sample_name}.fastg'
         """
     } else {
         """
         mkdir spades
-        spades.py -s '${reads}' -o 'spades' \
+        
+        spades.py -s '${reads}' -o 'spades' \\
         --threads '${task.cpus}'
+
+        mv spades/scaffolds.fasta 'spades/${sample_name}.fasta'
+        mv spades/assembly_graph.fastg 'spades/${sample_name}.fastg'
         """
     }
 }

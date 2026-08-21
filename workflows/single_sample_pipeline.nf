@@ -7,7 +7,7 @@ include { KRAKEN2 } from "../modules/kraken2.nf"
 include { BRACKEN } from "../modules/Bracken.nf"
 include { MLST    } from "../modules/mlst.nf"
 include { BUSCO   } from "../modules/busco.nf"
-include { MASH    } from "../modules/mash.nf"
+include { GAMBIT    } from "../modules/gambit.nf"
 
 
 workflow SINGLE_SAMPLE_PROCESSING {
@@ -28,8 +28,8 @@ workflow SINGLE_SAMPLE_PROCESSING {
         BUSCO(SPADES.out.scafolds)
 
         // Species classification 
-        if (params.use_mash) {
-            MASH(SPADES.out.scafolds, file(params.mash_db))
+        if (params.use_gambit) {
+            GAMBIT(SPADES.out.scafolds, file(params.gambit_db))
         }
 
         if (params.use_kraken2) {

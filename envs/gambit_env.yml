@@ -1,0 +1,7 @@
+name: mash_env
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - gambit=1.2.0

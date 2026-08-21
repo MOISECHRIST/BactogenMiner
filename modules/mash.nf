@@ -3,7 +3,7 @@
 /*
 AUTHOR : MEKA Moise
 EMAIL : moise.meka@students.unibe.ch
-BUSCO : Process to do the assembly results quality control using Bandage
+MASH : Process to assign taxonomy using mash
     INPUT : 
         assembly_graph : path to the input scafolds fasta file
         sample_name : string with the name of the sample 
