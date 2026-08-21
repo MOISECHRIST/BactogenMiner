@@ -15,19 +15,16 @@ BANDAGE : Process to do the assembly results quality control using Bandage
 process BANDAGE{
     tag "${sample_name}"
     label 'low'
+    publishDir "${params.outdir}/${sample_name}/assembly_QC", mode: 'copy'
 
     input:
     tuple val(sample_name), path(assembly_graph)
 
     output:
-    tuple val(sample_name), path("${sample_name}/assembly_QC/Bandage_Img.jpg"), emit: bandage_img
+    tuple val(sample_name), path("${sample_name}_Bandage_Img.jpg"), emit: bandage_img
 
     script:
     """
-    #Make the result directory
-    mkdir -p '${sample_name}/assembly_QC'
-
-    #Now run quast
-    Bandage image '${assembly_graph}' '${sample_name}/assembly_QC/Bandage_Img.jpg' 
+    Bandage image '${assembly_graph}' '${sample_name}_Bandage_Img.jpg'
     """
 }

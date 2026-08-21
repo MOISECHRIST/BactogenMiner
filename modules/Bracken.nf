@@ -16,25 +16,23 @@ BRACKEN : Process to compute specie abundance using Bracken
 process BRACKEN{
     tag "${sample_name}"
     label 'high'
+    publishDir "${params.outdir}/${sample_name}/kraken2_Bracken", mode: 'copy'
 
     input:
-    tuple val(sample_name), path(kraken2_report)
+    tuple val(sample_name), path(kraken2_report), path(kraken2_output)
+    path(kraken_db)
 
     output:
-    tuple val(sample_name), path("${sample_name}/kraken2_Bracken/bracken_output.txt"), emit: bracken_output
-    tuple val(sample_name), path("${sample_name}/kraken2_Bracken/bracken_report.txt"), emit: bracken_report
+    tuple val(sample_name), path("${sample_name}_bracken_output.txt"), emit: bracken_output
+    tuple val(sample_name), path("${sample_name}_bracken_report.txt"), emit: bracken_report
 
     script:
     """
-    #Make the result directory
-    mkdir -p '${sample_name}/kraken2_Bracken'
-
-    #To identify all species abundance in your sample you can use bracken 
-    bracken -d '${params.kraken_db}' \\
+    bracken -d '${kraken_db}' \\
     -i '${kraken2_report}' \\
-    -o '${sample_name}/kraken2_Bracken/bracken_output.txt' \\
-    -w '${sample_name}/kraken2_Bracken/bracken_report.txt' \\
-    -r '${params.kraken_read_len}'' -l '${params.bracken_class_level}' -t '${params.bracken_threshold}'
+    -o '${sample_name}_bracken_output.txt' \\
+    -w '${sample_name}_bracken_report.txt' \\
+    -r '${params.kraken_read_len}' -l '${params.bracken_class_level}' -t '${params.bracken_threshold}'
 
     ## NOTE :
     ## -> The flag -r <READ_LEN> is for the read length to get all classifications for (default: 100)

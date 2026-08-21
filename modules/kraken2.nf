@@ -13,29 +13,25 @@ KRAKEN2 : Process for specie classification using Kraken2
 */
 
 
-process KRAKEN_BRACKEN{
+process KRAKEN2{
     tag "${sample_name}"
     label 'high'
+    publishDir "${params.outdir}/${sample_name}/kraken2_Bracken", mode: 'copy'
 
     input:
     tuple val(sample_name), path(scafolds)
+    path(kraken_db)
 
     output:
-    tuple val(sample_name), path("${sample_name}/kraken2_Bracken/kraken2_output.txt"), emit: kraken2_output
-    tuple val(sample_name), path("${sample_name}/kraken2_Bracken/kraken2_report.txt"), emit: kraken2_report
+    tuple val(sample_name), path("${sample_name}_kraken2_report.txt"), path("${sample_name}_kraken2_output.txt"), emit: kraken_out
+    tuple val(sample_name), path("${sample_name}_kraken2_report.txt"), emit: kraken2_report
+    tuple val(sample_name), path("${sample_name}_kraken2_output.txt"), emit: kraken2_output
 
     script:
     """
-    #Make the result directory
-    mkdir -p '${sample_name}/kraken2_Bracken'
-
-    #Now run Kraken2
-    kraken2 --db '${params.kraken_db}' --threads '${task.cpus}' \\
-    --output '${sample_name}/kraken2_Bracken/kraken2_output.txt' \\
-    --report '${sample_name}/kraken2_Bracken/kraken2_report.txt' \\
+    kraken2 --db '${kraken_db}' --threads '${task.cpus}' \\
+    --output '${sample_name}_kraken2_output.txt' \\
+    --report '${sample_name}_kraken2_report.txt' \\
     '${scafolds}' --memory-mapping
-
-    ## NOTE : 
-    ## -> The flag --memory-mapping is for someone who do not need to load all the database in the RAM
     """
 }

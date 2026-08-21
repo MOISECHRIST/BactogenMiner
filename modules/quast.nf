@@ -15,19 +15,16 @@ QUAST : Process to do the assembly results quality control using quast
 process QUAST{
     tag "${sample_name}"
     label 'high'
+    publishDir "${params.outdir}/${sample_name}/assembly_QC", mode: 'copy'
 
     input:
     tuple val(sample_name), path(scafolds)
 
     output:
-    tuple val(sample_name), path("${sample_name}/assembly_QC"), emit: quast_results
+    tuple val(sample_name), path("quast"), emit: quast_report
 
     script:
     """
-    #Make the result directory
-    mkdir -p '${sample_name}/assembly_QC'
-
-    #Now run quast
-    quast.py '${scafolds}' -o '${sample_name}/assembly_QC' --threads '${task.cpus}' 
+    quast.py '${scafolds}' -o 'quast' --threads '${task.cpus}' 
     """
 }

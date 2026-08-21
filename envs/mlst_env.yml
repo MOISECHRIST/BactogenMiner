@@ -1,4 +1,4 @@
-name: assembly_qc
+name: mlst_env
 channels:
   - bioconda
   - conda-forge

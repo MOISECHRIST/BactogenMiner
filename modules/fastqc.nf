@@ -13,21 +13,19 @@ FASTQC : Process to assess the quality of reads in fastq format using fastqc too
 
 process FASTQC{
     tag "${sample_name}"
-    label 'low'
+    label 'high'
+    publishDir "${params.outdir}/${sample_name}/fastqc", mode: 'copy'
 
 
     input:
     tuple val(sample_name), path(reads)
 
     output:
-    path "${sample_name}/fastqc", emit: fastqc_results
+    tuple val(sample_name), path("*.html"), emit: fastqc_html
+    tuple val(sample_name), path("*.zip"), emit: fastqc_zip
 
     script:
     """
-    #Make the result directory 
-    mkdir -p '${sample_name}/fastqc'
-
-    #Now run fastqc on our fastq file
-    fastqc -t '${task.cpus}' '${reads}' -o '${sample_name}/fastqc'
+    fastqc -t '${task.cpus}' ${reads} 
     """
 }

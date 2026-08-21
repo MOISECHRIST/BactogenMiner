@@ -15,21 +15,27 @@ SPADES : Process to do de novo assembly of our genome using spades
 process SPADES{
     tag "${sample_name}"
     label 'high'
+    publishDir "${params.outdir}/${sample_name}", pattern: "spades/{scaffolds.fasta,assembly_graph.fastg}", mode: 'copy'
 
     input:
     tuple val(sample_name), path(reads)
 
     output:
-    tuple val(sample_name), path("${sample_name}/spades/scaffolds.fasta"), emit: spades_scafolds
-    tuple val(sample_name), path("${sample_name}/spades/assembly_graph.fastg"), emit: spades_assembly_graph
+    tuple val(sample_name), path("spades/scaffolds.fasta"), emit: scafolds
+    tuple val(sample_name), path("spades/assembly_graph.fastg"), emit: assembly_graph
 
     script:
-    """
-    #Make the result directory
-    mkdir -p '${sample_name}/spades'
-
-    #Now run the assembly with spades
-    spades.py -1 '${reads[0]}' -2 '${reads[1]}' -o '${sample_name}/spades' \\
-    --threads '${task.cpus}'
-    """
+    if (reads instanceof List && reads.size() == 2) {
+        """
+        mkdir spades
+        spades.py -1 '${reads[0]}' -2 '${reads[1]}' -o 'spades' \
+        --threads '${task.cpus}'
+        """
+    } else {
+        """
+        mkdir spades
+        spades.py -s '${reads}' -o 'spades' \
+        --threads '${task.cpus}'
+        """
+    }
 }

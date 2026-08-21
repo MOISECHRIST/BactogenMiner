@@ -1,8 +1,7 @@
-name: quality_control
+name: mash_env
 channels:
   - bioconda
   - conda-forge
   - defaults
 dependencies:
-  - fastp=1.3.6
-  - fastqc=0.12.1
+  - mash=2.3
