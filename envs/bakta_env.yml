@@ -1,0 +1,7 @@
+name: bakta_env
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - bakta=1.9.4

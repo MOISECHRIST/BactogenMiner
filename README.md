@@ -42,23 +42,7 @@ This pipeline automates the downstream processing of raw bacterial paired-end or
 
 ## Pipeline Architecture
 
-```
-Raw FastQ Reads
-      │
-      ├──> FastQC (Raw Quality Assessment)
-      └──> fastp  (Adapter Trimming & Quality Filtering)
-             │
-             └──> Cleaned Reads
-                    │
-                    └──> SPAdes (De Novo Assembly)
-                           │
-                           ├──> Bandage (Assembly Graph Image)
-                           ├──> QUAST   (Assembly Metrics)
-                           ├──> BUSCO   (Lineage Completeness)
-                           ├──> GAMBIT  (Species Classification)
-                           ├──> Kraken2 / Bracken (Taxonomy & Abundance - Optional)
-                           └──> MLST    (Sequence Typing)
-```
+**To be completed***
 
 ---
 

@@ -5,10 +5,11 @@ AUTHOR : MEKA Moise
 EMAIL : moise.meka@students.unibe.ch
 GAMBIT : Process to assign taxonomy using Gambit
     INPUT : 
-        assembly_graph : path to the input scafolds fasta file
+        assembly_scafold : path to the input scafolds fasta file
         sample_name : string with the name of the sample 
+        gambit_db : Path to the directory with Gambit Database 
     OUTPUT :
-        gambit_report : path to the mash report
+        gambit_report : path to the gambit report
 */
 
 
