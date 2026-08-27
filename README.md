@@ -161,7 +161,7 @@ Ensure required databases are accessible before running species classification o
 |---|---|---|
 | **GAMBIT** | Genomic distance classification | [GAMBIT Databases](https://gambit-genomics.readthedocs.io/en/latest/databases.html) |
 | **Kraken2 / Bracken** | K-mer classification & abundance | [Ben Langmead AWS Indexes](https://benlangmead.github.io/aws-indexes/k2) |
-| **Bakta DB** *(Optional)* | Full or light annotation database | Automatically downloaded if `--use_bakta true` or via [Bakta Documentation](https://github.com/oschwengers/bakta#database) |
+| **Bakta DB** *(Optional)* | Full or light annotation database | Automatically downloaded if `--use_bakta` or via [Bakta Documentation](https://github.com/oschwengers/bakta#database) |
 | **BUSCO Lineage** | Gene completeness benchmarking | Auto-downloaded during run (`bacteria_odb12`) |
 | **VFDB / PlasmidFinder** | Virulence and plasmid typing | Bundled within ABRicate |
 
@@ -195,7 +195,7 @@ nextflow run main.nf \
   -profile docker \
   --reads "data/sample01_{1,2}.fastq.gz" \
   --sample_name "sample01" \
-  --use_gambit true \
+  --use_gambit \
   --gambit_db "/path/to/gambit/db" \
   --outdir "results"
 ```
@@ -263,7 +263,7 @@ nextflow run main.nf \
   -profile docker \
   --samplesheet_csv "samplesheet.csv" \
   --gambit_db "/path/to/gambit/db" \
-  --use_bakta true \
+  --use_bakta \
   --bakta_db_type "light" \
   --outdir "results"
 ```
@@ -341,7 +341,7 @@ results/
 │   │   └── Busco/                              # BUSCO completeness summaries (JSON/TXT)
 │   ├── Annotation/
 │   │   ├── Prokka/                             # Prokka annotation files (.gff, .gbk, .faa, .fna)
-│   │   └── Bakta/                              # Bakta annotation outputs (if --use_bakta true)
+│   │   └── Bakta/                              # Bakta annotation outputs (if --use_bakta)
 │   ├── Gambit/
 │   │   └── <sample_id>_gambit_report.csv       # GAMBIT taxonomic predictions
 │   ├── kraken2_Bracken/
