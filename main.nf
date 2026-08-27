@@ -13,6 +13,6 @@ workflow {
             
             SINGLE_SAMPLE_PROCESSING(reads_ch)
         } else {
-            error "Please provide either --reads or --samplesheet/--samplesheet_csv"
+            error "Please provide either --reads or --samplesheet_csv"
         }
 }
