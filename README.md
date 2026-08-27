@@ -100,7 +100,7 @@ flowchart TD
     end
 
     subgraph Outputs ["Results Directory"]
-        FASTQC --> OUT["results/<sample_id>/"]
+        FASTQC --> OUT["results/sample_id/"]
         FASTP --> OUT
         BANDAGE --> OUT
         QUAST --> OUT
