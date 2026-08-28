@@ -1,0 +1,9 @@
+name: check_reads
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - fastq-scan=	0.4.1
+  - mash=2.3
+  - python=3.10

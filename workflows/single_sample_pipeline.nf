@@ -1,3 +1,4 @@
+include { CHECK_READS                  }      from "../modules/check_reads.nf"
 include { FASTQC                       }      from "../modules/fastqc.nf"
 include { FASTP                        }      from "../modules/fastp.nf"
 include { SPADES                       }      from "../modules/spades.nf"
@@ -23,8 +24,18 @@ workflow SINGLE_SAMPLE_PROCESSING {
 
     main:
         // Raw reads quality control
-        FASTQC(reads_ch)
-        FASTP(reads_ch)
+        CHECK_READS(reads_ch)
+        passed_reads_ch = CHECK_READS.out.validated_reads
+            .join(CHECK_READS.out.read_screen)
+            .filter { sample_name, reads, flag ->
+                if (flag != "PASS") {
+                    log.warn "Sample ${sample_name} failed read screening: ${flag}"
+                }
+                flag == "PASS"
+            }
+            .map { sample_name, reads, flag -> tuple(sample_name, reads) }
+        FASTQC(passed_reads_ch)
+        FASTP(passed_reads_ch)
 
         // De novo assembly 
         SPADES(FASTP.out.cleaned_reads)
@@ -66,4 +77,7 @@ workflow SINGLE_SAMPLE_PROCESSING {
         // Plasmid & Virulence Genes detection 
         ABRICATE_VFDB(SPADES.out.scafolds, "vfdb")
         ABRICATE_PLASMID(SPADES.out.scafolds, "plasmidfinder")
+    
+    emit:
+        scafolds = SPADES.out.scafolds
 }
