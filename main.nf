@@ -1,5 +1,5 @@
-include { SINGLE_SAMPLE_PROCESSING } from "./workflows/single_sample_pipeline.nf"
-
+include { SINGLE_SAMPLE_PROCESSING }      from "./workflows/single_sample_pipeline.nf"
+include { MAKE_ASSEMBLY_SHEET      }      from "./modules/make_assembly_sheet.nf"
 workflow {
     main:
         if (params.reads) {
@@ -9,10 +9,14 @@ workflow {
         } else if (params.samplesheet_csv) {
             reads_ch = channel.fromPath(params.samplesheet_csv, checkIfExists: true)
                 .splitCsv(header: true)
-                .map { row -> [row.sample_id, [file(row.fastq_1), file(row.fastq_2)]] }
+                .map { row ->
+                        def files = row.fastq_2 ? [file(row.fastq_1), file(row.fastq_2)] : [file(row.fastq_1)]
+                        [row.sample_id, files]
+                    }
             
             SINGLE_SAMPLE_PROCESSING(reads_ch)
         } else {
             error "Please provide either --reads or --samplesheet_csv"
         }
+        MAKE_ASSEMBLY_SHEET(SINGLE_SAMPLE_PROCESSING.out.scafolds.collect())
 }

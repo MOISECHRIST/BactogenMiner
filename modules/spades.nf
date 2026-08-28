@@ -15,7 +15,7 @@ SPADES : Process to do de novo assembly of our genome using spades
 process SPADES{
     tag "${sample_name}"
     label 'high'
-    publishDir "${params.outdir}/${sample_name}", pattern: "spades/{scaffolds.fasta,assembly_graph.fastg}", mode: 'copy'
+    publishDir "${params.outdir}/${sample_name}", pattern: "spades/{${sample_name}.fasta,${sample_name}.fastg}", mode: 'copy'
 
     input:
     tuple val(sample_name), path(reads)
