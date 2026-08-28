@@ -5,7 +5,7 @@
 [![Docker](https://img.shields.io/badge/Docker-enabled-2496ED.svg)](https://www.docker.com/)
 [![Conda](https://img.shields.io/badge/Conda-enabled-44A833.svg)](https://docs.conda.io/)
 
-**BactogenMiner** is a scalable, reproducible Nextflow (DSL2) workflow designed for end-to-end bacterial whole-genome sequencing (WGS) data analysis. It automates quality control, read trimming, *de novo* assembly, assembly evaluation, genome annotation, taxonomic identification, sequence typing, and screening for virulence factors and plasmid replicons.
+**BactogenMiner** is a scalable, reproducible Nextflow (DSL2) workflow designed for end-to-end bacterial whole-genome sequencing (WGS) data analysis. It automates pre-assembly read quality screening, read trimming, *de novo* assembly, assembly evaluation, genome annotation, taxonomic identification, sequence typing, virulence/plasmid screening, and phylogeny-ready manifest generation.
 
 ---
 
@@ -23,6 +23,7 @@
   - [3. Execution Profiles](#3-execution-profiles)
 - [Parameters Reference](#parameters-reference)
   - [Input / Output](#input--output)
+  - [Pre-Assembly Read Screening & Quality Gating](#pre-assembly-read-screening--quality-gating)
   - [Taxonomic Classification](#taxonomic-classification)
   - [Genome Annotation](#genome-annotation)
   - [Assembly, QC & Typing](#assembly-qc--typing)
@@ -35,8 +36,11 @@
 
 ## Overview & Key Features
 
-- **Automated QC & Preprocessing**: Performs FastQC quality checks and fastp adapter trimming/filtering on paired-end or single-end Illumina reads.
-- **Robust *De Novo* Assembly**: Employs SPAdes for contig/scaffold reconstruction and assembly graph generation.
+- **Pre-Assembly Read Screening & Quality Gating**:
+  - Automatically assesses read count, total basepairs, R1/R2 forward-reverse balance, estimated genome length, and estimated sequencing coverage prior to assembly using **fastq-scan** and **Mash** (adapted from Theiagen / TheiaProk screening standards).
+  - Flags and skips degraded, under-covered, or contaminated samples early to avoid wasted compute.
+- **Automated QC & Preprocessing**: Performs **FastQC** quality checks and **fastp** adapter trimming, poly-G clipping, and quality filtering on paired-end or single-end Illumina reads.
+- **Robust *De Novo* Assembly**: Employs **SPAdes** for contig/scaffold reconstruction and assembly graph generation.
 - **Multifaceted Assembly QC**:
   - Contig continuity and N50 statistics using **QUAST**.
   - Assembly graph visual exploration using **Bandage**.
@@ -49,7 +53,8 @@
   - K-mer based metagenomic classification with **Kraken2** and abundance re-estimation with **Bracken**.
 - **In Silico Sequence Typing**: Multi-Locus Sequence Typing (**MLST**) against PubMLST typing schemes with automatic schema detection.
 - **Virulence & Plasmid Screening**: Screen assemblies for virulence factors (**VFDB**) and plasmid replicons (**PlasmidFinder**) via **ABRICATE**.
-- **Reproducible Execution**: Built-in containerized profiles (**Docker** via BioContainers) and environment recipes (**Conda**).
+- **Phylogeny Manifest Generation**: Centralizes all generated scaffold assemblies into an assembly manifest (`assembly_sample_sheet.txt`) ready for downstream phylogenetic workflows (e.g. SKA, RAxML).
+- **Reproducible Execution**: Built-in containerized profiles (**Docker** via BioContainers & custom images) and environment recipes (**Conda**).
 
 ---
 
@@ -62,30 +67,35 @@ flowchart TD
         SS["CSV Samplesheet"]
     end
 
-    subgraph Preprocessing ["1. Quality Control & Trimming"]
-        R1 --> FASTQC["FastQC\n(Raw Read QC)"]
-        R1 --> FASTP["fastp\n(Adapter Trimming & Quality Filtering)"]
-        SS --> FASTQC
-        SS --> FASTP
+    subgraph Screen ["1. Read Screening & Quality Gating"]
+        R1 --> CHECK_READS["CHECK_READS\n(fastq-scan & Mash)\nLength, Coverage, R1/R2 Balance"]
+        SS --> CHECK_READS
+        CHECK_READS -->|FAIL| DROP["Filtered Out\n(Warning Logged)"]
+        CHECK_READS -->|PASS| PASS_READS["Validated Reads"]
     end
 
-    subgraph Assembly ["2. De Novo Assembly"]
+    subgraph Preprocessing ["2. Quality Control & Trimming"]
+        PASS_READS --> FASTQC["FastQC\n(Raw Read QC)"]
+        PASS_READS --> FASTP["fastp\n(Adapter Trimming & Quality Filtering)"]
+    end
+
+    subgraph Assembly ["3. De Novo Assembly"]
         FASTP --> SPADES["SPAdes\n(De Novo Genome Assembly)"]
     end
 
-    subgraph AssemblyQC ["3. Assembly Quality Control"]
+    subgraph AssemblyQC ["4. Assembly Quality Control"]
         SPADES --> BANDAGE["Bandage\n(Graph Visualization)"]
         SPADES --> QUAST["QUAST\n(Assembly Metrics & N50)"]
         SPADES --> BUSCO["BUSCO\n(Genome Completeness)"]
     end
 
-    subgraph Annotation ["4. Genome Annotation"]
+    subgraph Annotation ["5. Genome Annotation"]
         SPADES --> PROKKA["Prokka\n(Default Annotation)"]
         SPADES --> BAKTA["Bakta\n(Optional Annotation)"]
         BAKTA_DB["Bakta DB Download (if needed)"] -.-> BAKTA
     end
 
-    subgraph Taxonomy ["5. Species Classification"]
+    subgraph Taxonomy ["6. Species Classification"]
         SPADES --> GAMBIT["GAMBIT\n(Genomic Distance)"]
         GAMBIT --> GS_GAMBIT["Top Species Extraction"]
         SPADES --> KRAKEN2["Kraken2\n(K-mer Classification)"]
@@ -93,13 +103,18 @@ flowchart TD
         BRACKEN --> GS_BRACKEN["Top Species Extraction"]
     end
 
-    subgraph Typing ["6. Sequence Typing & Profiling"]
+    subgraph Typing ["7. Sequence Typing & Profiling"]
         SPADES --> MLST["MLST\n(PubMLST Scheme Typing)"]
         SPADES --> VFDB["ABRICATE (VFDB)\n(Virulence Factors)"]
         SPADES --> PLASMID["ABRICATE (PlasmidFinder)\n(Plasmid Replicons)"]
     end
 
+    subgraph Phylogeny ["8. Phylogeny Preparation"]
+        SPADES --> MAKE_SHEET["MAKE_ASSEMBLY_SHEET\n(Aggregates all scaffolds)"]
+    end
+
     subgraph Outputs ["Results Directory"]
+        CHECK_READS --> OUT_QC["results/sample_id/ReadScreen/"]
         FASTQC --> OUT["results/sample_id/"]
         FASTP --> OUT
         BANDAGE --> OUT
@@ -112,6 +127,7 @@ flowchart TD
         MLST --> OUT
         VFDB --> OUT
         PLASMID --> OUT
+        MAKE_SHEET --> PHYLO_OUT["results/phylogeny/assembly_sample_sheet.txt"]
     end
 ```
 
@@ -119,26 +135,33 @@ flowchart TD
 
 ## Workflow Steps
 
-1. **Read QC and Trimming**:
-   - **FastQC**: Evaluates raw sequence quality, per-base quality scores, GC content, and duplication levels.
-   - **fastp**: Performs automated adapter detection, quality trimming, poly-G tail clipping, and front/tail trimming.
-2. **De Novo Assembly**:
-   - **SPAdes**: Assembles high-quality trimmed reads into scaffolds (`<sample>.fasta`) and assembly graphs (`<sample>.fastg`).
-3. **Assembly Quality Control**:
-   - **Bandage**: Renders visual images of the assembly graph topology.
-   - **QUAST**: Calculates contig lengths, N50, L50, GC content, and comprehensive HTML summary reports.
-   - **BUSCO**: Assesses genome completeness based on universal bacterial single-copy orthologs (`bacteria_odb12`).
-4. **Genome Annotation**:
+1. **Pre-Assembly Read Screening & Quality Gating (`CHECK_READS`)**:
+   - Computes read count and basepair metrics via `fastq-scan`.
+   - Sketches reads via `Mash` to estimate genome length and sequencing coverage before performing *de novo* assembly.
+   - Verifies paired-end read balance (`--min_proportion`), minimum read count (`--min_reads`), minimum total basepairs (`--min_basepairs`), estimated genome length bounds (`--min_genome_length`, `--max_genome_length`), and minimum coverage (`--min_coverage`).
+   - Samples failing quality criteria are flagged in `<sample_id>_read_screen.tsv` and filtered out.
+2. **Read QC and Trimming (`FASTQC` & `FASTP`)**:
+   - **FastQC**: Evaluates per-base sequence quality, GC content distribution, and duplication levels.
+   - **fastp**: Performs automated adapter detection, quality filtering, poly-G clipping, and front/tail trimming (`--cut_front --cut_tail`).
+3. **De Novo Assembly (`SPADES`)**:
+   - **SPAdes**: Assembles high-quality trimmed reads into scaffolds (`<sample_id>.fasta`) and assembly graphs (`<sample_id>.fastg`). Supports single-end and paired-end datasets.
+4. **Assembly Quality Control (`BANDAGE`, `QUAST`, `BUSCO`)**:
+   - **Bandage**: Generates visual representations of the assembly graph topology (`<sample_id>_Bandage_Img.jpg`).
+   - **QUAST**: Computes assembly continuity metrics (N50, L50, contig count, GC content) and generates an interactive HTML summary.
+   - **BUSCO**: Quantifies genome completeness using universal bacterial single-copy orthologs (`bacteria_odb12`).
+5. **Genome Annotation (`PROKKA` / `BAKTA`)**:
    - **Prokka** *(Default)*: Rapidly annotates CDS, tRNA, rRNA, and signal peptides, outputting GFF3, GenBank, and FASTA files.
-   - **Bakta** *(Optional)*: Comprehensive bacterial genome annotation utilizing updated databases. Can automatically fetch databases using `BAKTA_BD`.
-5. **Taxonomic Classification**:
-   - **GAMBIT** *(Default)*: Rapid identification via genomic signatures against curated reference databases.
-   - **Kraken2** & **Bracken** *(Optional)*: Exact k-mer matching and Bayesian abundance estimation at custom taxonomic ranks.
-6. **Typing & Plasmid/Virulence Profiling**:
-   - **MLST**: Scans contigs against PubMLST databases for sequence type (ST) and allele profile determination.
+   - **Bakta** *(Optional)*: High-precision bacterial genome annotation. Downloads required databases automatically (`BAKTA_BD`) if a local database path is not specified.
+6. **Taxonomic Classification (`GAMBIT` / `KRAKEN2` + `BRACKEN`)**:
+   - **GAMBIT** *(Default)*: Rapid species identification using genomic signatures against curated reference databases.
+   - **Kraken2** & **Bracken** *(Optional)*: Exact k-mer matching with Bayesian abundance re-estimation and top-species resolution.
+7. **Sequence Typing & Virulence/Plasmid Profiling (`MLST` & `ABRICATE`)**:
+   - **MLST**: Scans contigs against PubMLST databases to determine sequence type (ST) and allele profiles.
    - **ABRICATE**: Mass screening of contigs for:
      - **VFDB**: Bacterial virulence factors.
-     - **PlasmidFinder**: Plasmid replicon typing and identification.
+     - **PlasmidFinder**: Plasmid replicon typing.
+8. **Phylogeny Sample Sheet Compilation (`MAKE_ASSEMBLY_SHEET`)**:
+   - Compiles real file paths of all assembled scaffolds into `results/phylogeny/assembly_sample_sheet.txt` for downstream phylogenetic analyses (e.g. core-genome SNP alignment or phylogenetics).
 
 ---
 
@@ -146,10 +169,10 @@ flowchart TD
 
 - **Nextflow** (>= 22.10.0)
 - **Container Engine or Package Manager**:
-  - **Docker** (recommended for seamless reproducibility)
+  - **Docker** (recommended for seamless reproducibility; uses official BioContainers and `mmcj/check_reads:1.1`)
   - **Conda / Mamba** (using environment definitions in `envs/`)
 
-Hardware requirements depend on the size and number of genomes analyzed. By default, processes use available CPUs and up to 28 GB RAM (configurable via parameters).
+Hardware requirements depend on the number and size of genomes analyzed. By default, processes use available CPUs and up to 28 GB RAM (configurable via parameters).
 
 ---
 
@@ -239,11 +262,11 @@ nextflow run main.nf \
 
 Pre-configured profiles in `nextflow.config` can be combined using comma-separated arguments:
 
-- `docker`: Executes all processes inside official BioContainers.
+- `docker`: Executes all processes inside official BioContainers and custom Docker images (`mmcj/check_reads:1.1`).
 - `conda`: Automatically configures environments from YAML specifications in `envs/`.
 - `test`: Executes pipeline with bundled test data (`test/data/sample_sheet.csv`).
-- `using_gambit`: Activates GAMBIT-based taxonomy with bundled test database.
-- `using_kraken2`: Activates Kraken2 + Bracken taxonomy with bundled test database.
+- `using_gambit`: Activates GAMBIT-based taxonomy with bundled test reference database.
+- `using_kraken2`: Activates Kraken2 + Bracken taxonomy with bundled test reference database.
 
 #### Example Commands
 
@@ -280,6 +303,17 @@ nextflow run main.nf \
 | `--samplesheet_csv` | String | `null` | Path to CSV samplesheet with header `sample_id,fastq_1,fastq_2` |
 | `--sample_name` | String | `'sample01'` | Identifier used when running in single-sample mode with `--reads` |
 | `--outdir` | String | `'results'` | Output directory where final results will be organized |
+
+### Pre-Assembly Read Screening & Quality Gating
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `--min_reads` | Integer | `50` | Minimum total number of reads required per sample |
+| `--min_basepairs` | Integer | `2000000` | Minimum total base pairs required (2 Mb default) |
+| `--min_proportion` | Integer | `40` | Minimum percentage of total bases in R1 or R2 (flags PE imbalance) |
+| `--min_genome_length` | Integer | `100000` | Minimum estimated genome length (bp) via Mash (100 kb default) |
+| `--max_genome_length` | Integer | `17000000` | Maximum estimated genome length (bp) via Mash (17 Mb default) |
+| `--min_coverage` | Integer | `10` | Minimum estimated sequencing coverage depth (10x default) |
 
 ### Taxonomic Classification
 
@@ -319,11 +353,15 @@ nextflow run main.nf \
 
 ## Output Directory Structure
 
-Pipeline results are organized hierarchically by sample identifier:
+Pipeline results are organized hierarchically by sample identifier, along with a shared phylogeny directory:
 
 ```text
 results/
 ├── <sample_id>/
+│   ├── ReadScreen/
+│   │   ├── <sample_id>_read_screen.tsv         # Pre-assembly QC screening metrics & PASS/FAIL flag
+│   │   ├── <sample_id>_1.fastq.gz              # Validated forward reads (if passed screening)
+│   │   └── <sample_id>_2.fastq.gz              # Validated reverse reads (if passed screening)
 │   ├── fastqc/
 │   │   ├── <sample_id>_fastqc.html             # Raw read FastQC report
 │   │   └── <sample_id>_fastqc.zip              # FastQC data metrics archive
@@ -354,6 +392,8 @@ results/
 │   └── Abricate/
 │       ├── <sample_id>_vfdb_report.txt         # Virulence factor screening results
 │       └── <sample_id>_plasmidfinder_report.txt# Plasmid replicon typing results
+├── phylogeny/
+│   └── assembly_sample_sheet.txt               # Aggregated sample manifest for downstream phylogenetic analysis
 └── Bakta_DB/                                   # Downloaded Bakta database (if generated)
 ```
 
@@ -364,6 +404,9 @@ results/
 If you use BactogenMiner in your research, please cite the tools utilized:
 
 - **Nextflow**: Di Tommaso, P., et al. (2017). Nextflow enables reproducible computational workflows. *Nature Biotechnology*, 35(4), 316–319.
+- **fastq-scan**: Brown, D. C. `fastq-scan` (GitHub repository: [https://github.com/rpetit3/fastq-scan](https://github.com/rpetit3/fastq-scan)).
+- **Mash**: Ondov, B. D., et al. (2016). Mash: fast genome and metagenome distance estimation using MinHash. *Genome Biology*, 17(1), 132.
+- **TheiaProk / PHB Screening Concept**: Theiagen Genomics (GitHub repository: [https://github.com/theiagen/public_health_bioinformatics](https://github.com/theiagen/public_health_bioinformatics)).
 - **FastQC**: Andrews, S. (2010). FastQC: a quality control tool for high throughput sequence data.
 - **fastp**: Chen, S., et al. (2018). fastp: an ultra-fast all-in-one FASTQ preprocessor. *Bioinformatics*, 34(17), i884–i890.
 - **SPAdes**: Prjibelski, A., et al. (2020). Using SPAdes de novo assembler. *Current Protocols in Bioinformatics*, 70(1), e102.
