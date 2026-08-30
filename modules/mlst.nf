@@ -30,7 +30,7 @@ process MLST{
         """
     } else {
         """
-        mlst '${scafolds}' --csv > '${sample_name}_mlst_report.csv'
+        mlst ${scafolds} --csv > ${sample_name}_mlst_report.csv
         """
     } 
 }
