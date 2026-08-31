@@ -1,4 +1,4 @@
-name: mash_env
+name: gambit_env
 channels:
   - bioconda
   - conda-forge

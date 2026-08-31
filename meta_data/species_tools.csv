@@ -1,0 +1,14 @@
+species_name,sp_group,tools
+Klebsiella pneumoniae,kpsc,kleborate
+Klebsiella quasipneumoniae,kpsc,kleborate
+Klebsiella variicola,kpsc,kleborate
+Klebsiella quasivariicola,kpsc,kleborate
+Klebsiella africana,kpsc,kleborate
+Klebsiella oxytoca,kosc,kleborate
+Klebsiella grimontii,kosc,kleborate
+Klebsiella michiganensis,kosc,kleborate
+Klebsiella pasteurii,kosc,kleborate
+Klebsiella huaxiensis,kosc,kleborate
+Klebsiella spallanzanii,kosc,kleborate
+Escherichia,escherichia,kleborate
+Shigella,escherichia,kleborate

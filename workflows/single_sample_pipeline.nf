@@ -13,9 +13,13 @@ include { PROKKA                       }      from "../modules/prokka.nf"
 include { BAKTA                        }      from "../modules/bakta.nf"
 include { BAKTA_BD                     }      from "../modules/bakta_db.nf"
 include { ABRICATE as ABRICATE_VFDB    }      from "../modules/abricate.nf"
+include { ABRICATE as ABRICATE_AMR     }      from "../modules/abricate.nf"
 include { ABRICATE as ABRICATE_PLASMID }      from "../modules/abricate.nf"
+include { ABRICATE as ABRICATE_ECOLI   }      from "../modules/abricate.nf"
 include { GET_SPECIES_BRAKEN           }      from "../modules/get_species_braken.nf"
 include { GET_SPECIES_GAMBIT           }      from "../modules/get_species_gambit.nf"
+include { JOIN_SPECIES_TOOLS           }      from "../modules/join_species_with_tools.nf"
+include { KLEBORATE                    }      from "../modules/kleborate.nf"
 
 
 workflow SINGLE_SAMPLE_PROCESSING {
@@ -62,22 +66,66 @@ workflow SINGLE_SAMPLE_PROCESSING {
         if (params.use_gambit) {
             GAMBIT(SPADES.out.scafolds, file(params.gambit_db))
             GET_SPECIES_GAMBIT(GAMBIT.out.gambit_report)
-        }
-
-        if (params.use_kraken2) {
+            species_name = GET_SPECIES_GAMBIT.out.species_name
+            gambit_report_ch  = GAMBIT.out.gambit_report
+            bracken_report_ch = channel.empty()
+            bracken_output_ch = channel.empty()
+            kraken2_output_ch = channel.empty()
+            kraken2_report_ch = channel.empty()
+        } else {
             KRAKEN2(SPADES.out.scafolds, file(params.kraken_db))
             BRACKEN(KRAKEN2.out.kraken_out, file(params.kraken_db))
             GET_SPECIES_BRAKEN(BRACKEN.out.bracken_output)
-
+            species_name = GET_SPECIES_BRAKEN.out.species_name
+            gambit_report_ch  = channel.empty()
+            bracken_report_ch = BRACKEN.out.bracken_report
+            bracken_output_ch = BRACKEN.out.bracken_output
+            kraken2_output_ch = KRAKEN2.out.kraken2_output
+            kraken2_report_ch = KRAKEN2.out.kraken2_report
         }
 
         // Sequence typing
         MLST(SPADES.out.scafolds)
 
-        // Plasmid & Virulence Genes detection 
-        ABRICATE_VFDB(SPADES.out.scafolds, "vfdb")
+        //Species specific screening genome assemblies
+        JOIN_SPECIES_TOOLS(species_name)
+        sp_group_ch = JOIN_SPECIES_TOOLS.out.sp_group.map {sp -> sp[1]}
+        tools_ch    = JOIN_SPECIES_TOOLS.out.tools.map {tools -> tools[1]}
+
+        routed = SPADES.out.scafolds
+            .combine(sp_group_ch)
+            .combine(tools_ch)
+            .branch { sample_name, scafolds, sp_group, tools ->
+                kleborate: tools == "kleborate"
+                seqsero:   tools == "SeqSero2"
+                lissero:   tools == "LisSero"
+                other:     true
+            }
+
+        KLEBORATE(
+            routed.kleborate.map { sn, sc, sp, tl -> tuple(sn, sc) },
+            routed.kleborate.map { sn, sc, sp, tl -> sp }
+        )
+        ecoli_only = routed.kleborate.filter { sn, sc, sp, tl -> sp == "escherichia" }
+        ABRICATE_ECOLI(ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) }, "ecoli_vf")
+
+        // SEQSERO2
+        // LISSERO
+
+        ABRICATE_AMR(routed.other.map { sn, sc, sp, tl -> tuple(sn, sc) }, "resfinder")
+        ABRICATE_VFDB(routed.other.map { sn, sc, sp, tl -> tuple(sn, sc) }, "vfdb")
         ABRICATE_PLASMID(SPADES.out.scafolds, "plasmidfinder")
     
     emit:
+        fastqc_zip = FASTQC.out.fastqc_zip
+        fastp_json = FASTP.out.json
         scafolds = SPADES.out.scafolds
+        quast_report = QUAST.out.quast_report
+        busco_json_summary = BUSCO.out.busco_json_summary
+        busco_txt_summary = BUSCO.out.busco_txt_summary
+        gambit_report       = gambit_report_ch
+        bracken_report      = bracken_report_ch
+        bracken_output      = bracken_output_ch
+        kraken2_output      = kraken2_output_ch
+        kraken2_report      = kraken2_report_ch
 }

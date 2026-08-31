@@ -1,7 +1,7 @@
-name: abricate_env
+name: kleborate_env
 channels:
   - bioconda
   - conda-forge
   - defaults
 dependencies:
-  - abricate=1.4.0
+  - kleborate=3.2.4
