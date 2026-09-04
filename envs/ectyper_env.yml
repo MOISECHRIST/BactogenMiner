@@ -1,0 +1,7 @@
+name: ectyper_env
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - ectyper=2.0.0

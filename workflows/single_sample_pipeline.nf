@@ -20,6 +20,8 @@ include { GET_SPECIES_BRAKEN           }      from "../modules/get_species_brake
 include { GET_SPECIES_GAMBIT           }      from "../modules/get_species_gambit.nf"
 include { JOIN_SPECIES_TOOLS           }      from "../modules/join_species_with_tools.nf"
 include { KLEBORATE                    }      from "../modules/kleborate.nf"
+include { ECTYPER                      }      from "../modules/ectyper.nf"
+include { SEQSERO2                     }      from "../modules/seqsero2.nf"
 
 
 workflow SINGLE_SAMPLE_PROCESSING {
@@ -99,6 +101,7 @@ workflow SINGLE_SAMPLE_PROCESSING {
                 kleborate: tools == "kleborate"
                 seqsero:   tools == "SeqSero2"
                 lissero:   tools == "LisSero"
+                pasty:     tools == "Pasty"
                 other:     true
             }
 
@@ -108,8 +111,10 @@ workflow SINGLE_SAMPLE_PROCESSING {
         )
         ecoli_only = routed.kleborate.filter { sn, sc, sp, tl -> sp == "escherichia" }
         ABRICATE_ECOLI(ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) }, "ecoli_vf")
+        ECTYPER(ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) })
 
-        // SEQSERO2
+        SEQSERO2(routed.seqsero.map {sn, sc, sp, tl -> tuple(sn, sc)}, "4")
+        
         // LISSERO
 
         ABRICATE_AMR(routed.other.map { sn, sc, sp, tl -> tuple(sn, sc) }, "resfinder")

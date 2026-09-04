@@ -1,0 +1,7 @@
+name: pasty_env
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - pasty=2.2.1
