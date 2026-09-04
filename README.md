@@ -501,5 +501,5 @@ This project is licensed under the **GNU General Public License v3.0** - see the
 ## Author and Contact
 
 - **MEKA Moise**
-- Email: `moise.meka@students.unibe.ch`
+- Email: [moise.meka@students.unibe.ch](mailto:moise.meka@students.unibe.ch)
 - MSc Bioinformatics and Computational Biology, University of Bern
