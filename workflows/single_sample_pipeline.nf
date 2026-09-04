@@ -22,6 +22,7 @@ include { JOIN_SPECIES_TOOLS           }      from "../modules/join_species_with
 include { KLEBORATE                    }      from "../modules/kleborate.nf"
 include { ECTYPER                      }      from "../modules/ectyper.nf"
 include { SEQSERO2                     }      from "../modules/seqsero2.nf"
+include { LISSERO                     }      from "../modules/lissero.nf"
 
 
 workflow SINGLE_SAMPLE_PROCESSING {
@@ -113,9 +114,10 @@ workflow SINGLE_SAMPLE_PROCESSING {
         ABRICATE_ECOLI(ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) }, "ecoli_vf")
         ECTYPER(ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) })
 
-        SEQSERO2(routed.seqsero.map {sn, sc, sp, tl -> tuple(sn, sc)}, "4")
-        
-        // LISSERO
+        SEQSERO2(routed.seqsero.map {sn, sc, sp, tl -> tuple(sn, sc)}, "4")//for illumina assembly fasta
+        //SEQSERO2(routed.seqsero.map {sn, sc, sp, tl -> tuple(sn, sc)}, "5")//for Long Reads assembly fasta
+
+        LISSERO(routed.lissero.map {sn, sc, sp, tl -> tuple(sn, sc)})
 
         ABRICATE_AMR(routed.other.map { sn, sc, sp, tl -> tuple(sn, sc) }, "resfinder")
         ABRICATE_VFDB(routed.other.map { sn, sc, sp, tl -> tuple(sn, sc) }, "vfdb")
