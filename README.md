@@ -4,8 +4,9 @@
 [![DSL2](https://img.shields.io/badge/DSL-2-23AA62.svg)](https://www.nextflow.io/)
 [![Docker](https://img.shields.io/badge/Docker-enabled-2496ED.svg)](https://www.docker.com/)
 [![Conda](https://img.shields.io/badge/Conda-enabled-44A833.svg)](https://docs.conda.io/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-**BactogenMiner** is a scalable, reproducible Nextflow (DSL2) workflow designed for end-to-end bacterial whole-genome sequencing (WGS) data analysis. It automates pre-assembly read quality screening, read trimming, *de novo* assembly, assembly evaluation, genome annotation, taxonomic identification, sequence typing, virulence/plasmid screening, and phylogeny-ready manifest generation.
+**BactogenMiner** is a scalable, reproducible Nextflow (DSL2) workflow designed for end-to-end bacterial whole-genome sequencing (WGS) data analysis. It automates pre-assembly read quality screening, read trimming, *de novo* assembly, assembly evaluation, genome annotation, taxonomic identification, dynamic species-specific typing/serotyping, virulence/plasmid screening, and phylogeny-ready manifest generation.
 
 ---
 
@@ -14,6 +15,7 @@
 - [Overview & Key Features](#overview--key-features)
 - [Pipeline Architecture](#pipeline-architecture)
 - [Workflow Steps](#workflow-steps)
+- [Species-Specific Profiling & Typing](#species-specific-profiling--typing)
 - [Prerequisites & Dependencies](#prerequisites--dependencies)
 - [Reference Databases](#reference-databases)
 - [Installation](#installation)
@@ -30,6 +32,7 @@
   - [Compute Resources](#compute-resources)
 - [Output Directory Structure](#output-directory-structure)
 - [Tools and Citations](#tools-and-citations)
+- [License](#license)
 - [Author and Contact](#author-and-contact)
 
 ---
@@ -46,13 +49,20 @@
   - Assembly graph visual exploration using **Bandage**.
   - Core conserved gene completeness benchmarking using **BUSCO** (`bacteria_odb12` lineage).
 - **Flexible Genome Annotation**:
-  - Rapid, standard bacterial annotation via **Prokka** (default).
+  - Rapid standard bacterial annotation via **Prokka** (default).
   - High-precision annotation via **Bakta** (with automated database download or local database support).
 - **Dual Taxonomic Classification Support**:
-  - Ultra-fast genomic distance-based classification via **GAMBIT** with automated top-species resolution.
+  - Ultra-fast genomic distance-based classification via **GAMBIT** with automated top-species resolution (default).
   - K-mer based metagenomic classification with **Kraken2** and abundance re-estimation with **Bracken**.
-- **In Silico Sequence Typing**: Multi-Locus Sequence Typing (**MLST**) against PubMLST typing schemes with automatic schema detection.
-- **Virulence & Plasmid Screening**: Screen assemblies for virulence factors (**VFDB**) and plasmid replicons (**PlasmidFinder**) via **ABRICATE**.
+- **Dynamic Species-Specific Typing & Serotyping**:
+  - **Automated Species Dispatching**: Matches top species against `meta_data/species_tools.csv` to dynamically trigger specialized profiling tools.
+  - **Kleborate**: In-depth genomic surveillance for *Klebsiella pneumoniae* species complex (KPSC), *Klebsiella oxytoca* species complex (KOSC), and *Escherichia* (MLST, virulence loci like yersiniabactin, aerobactin, colibactin, salmochelin, rmpA/rmpA2, acquired AMR genes, and K/O capsule loci).
+  - **ECTyper**: *In silico* O and H serotyping and pathotype prediction for *Escherichia coli* and *Shigella*.
+  - **SeqSero2**: High-accuracy *Salmonella* serotype determination from assemblies.
+  - **Pasty**: *In silico* serogrouping for *Pseudomonas aeruginosa* based on the O-antigen biosynthesis locus.
+- **Universal Sequence Typing, Virulence & Plasmid Profiling**:
+  - Multi-Locus Sequence Typing (**MLST**) against PubMLST typing schemes with automatic scheme detection.
+  - Screen assemblies for virulence factors (**VFDB**, species-tailored `ecoli_vf`), antimicrobial resistance (**ResFinder**), and plasmid replicons (**PlasmidFinder**) via **ABRICATE**.
 - **Phylogeny Manifest Generation**: Centralizes all generated scaffold assemblies into an assembly manifest (`assembly_sample_sheet.txt`) ready for downstream phylogenetic workflows (e.g. SKA, RAxML).
 - **Reproducible Execution**: Built-in containerized profiles (**Docker** via BioContainers & custom images) and environment recipes (**Conda**).
 
@@ -103,13 +113,24 @@ flowchart TD
         BRACKEN --> GS_BRACKEN["Top Species Extraction"]
     end
 
-    subgraph Typing ["7. Sequence Typing & Profiling"]
+    subgraph UniversalTyping ["7. Universal Typing & Screening"]
         SPADES --> MLST["MLST\n(PubMLST Scheme Typing)"]
-        SPADES --> VFDB["ABRICATE (VFDB)\n(Virulence Factors)"]
         SPADES --> PLASMID["ABRICATE (PlasmidFinder)\n(Plasmid Replicons)"]
     end
 
-    subgraph Phylogeny ["8. Phylogeny Preparation"]
+    subgraph SpeciesRouting ["8. Species-Specific Profiling & Serotyping"]
+        GS_GAMBIT --> ROUTE["JOIN_SPECIES_TOOLS\n(species_tools.csv)"]
+        GS_BRACKEN --> ROUTE
+        SPADES --> ROUTE
+
+        ROUTE -->|KPSC / KOSC / Escherichia| KLEBORATE["Kleborate\n(Virulence, AMR, K/O Loci)"]
+        ROUTE -->|Escherichia / Shigella| ECTYPER["ECTyper & ABRICATE\n(O:H Serotype, Pathotype, ecoli_vf)"]
+        ROUTE -->|Salmonella| SEQSERO2["SeqSero2\n(Salmonella Serotyping)"]
+        ROUTE -->|Pseudomonas aeruginosa| PASTY["Pasty\n(Serogroup Prediction)"]
+        ROUTE -->|Other Bacterial Taxa| GENERAL_AMR["ABRICATE\n(ResFinder & VFDB)"]
+    end
+
+    subgraph Phylogeny ["9. Phylogeny Preparation"]
         SPADES --> MAKE_SHEET["MAKE_ASSEMBLY_SHEET\n(Aggregates all scaffolds)"]
     end
 
@@ -125,8 +146,12 @@ flowchart TD
         GAMBIT --> OUT
         BRACKEN --> OUT
         MLST --> OUT
-        VFDB --> OUT
         PLASMID --> OUT
+        KLEBORATE --> OUT
+        ECTYPER --> OUT
+        SEQSERO2 --> OUT
+        PASTY --> OUT
+        GENERAL_AMR --> OUT
         MAKE_SHEET --> PHYLO_OUT["results/phylogeny/assembly_sample_sheet.txt"]
     end
 ```
@@ -155,13 +180,39 @@ flowchart TD
 6. **Taxonomic Classification (`GAMBIT` / `KRAKEN2` + `BRACKEN`)**:
    - **GAMBIT** *(Default)*: Rapid species identification using genomic signatures against curated reference databases.
    - **Kraken2** & **Bracken** *(Optional)*: Exact k-mer matching with Bayesian abundance re-estimation and top-species resolution.
-7. **Sequence Typing & Virulence/Plasmid Profiling (`MLST` & `ABRICATE`)**:
+7. **Universal Sequence & Plasmid Profiling**:
    - **MLST**: Scans contigs against PubMLST databases to determine sequence type (ST) and allele profiles.
-   - **ABRICATE**: Mass screening of contigs for:
-     - **VFDB**: Bacterial virulence factors.
-     - **PlasmidFinder**: Plasmid replicon typing.
-8. **Phylogeny Sample Sheet Compilation (`MAKE_ASSEMBLY_SHEET`)**:
-   - Compiles real file paths of all assembled scaffolds into `results/phylogeny/assembly_sample_sheet.txt` for downstream phylogenetic analyses (e.g. core-genome SNP alignment or phylogenetics).
+   - **ABRICATE (`plasmidfinder`)**: Screens all assemblies for known plasmid replicons.
+8. **Intelligent Taxonomic Routing & Species-Specific Typing**:
+   - Matches the identified top species name against `meta_data/species_tools.csv` (`JOIN_SPECIES_TOOLS`) to route assemblies into tailored analysis workflows:
+     - **Kleborate**: Runs with species group presets (`kpsc`, `kosc`, or `escherichia`) to profile virulence loci (*ybt*, *clb*, *iuc*, *iro*, *rmpA*), acquired resistance genes, and capsule K / O antigen loci.
+     - **ECTyper**: Performs *in silico* O and H serotyping and pathotype prediction for *Escherichia* and *Shigella*.
+     - **ABRICATE (`ecoli_vf`)**: Profiles *Escherichia*-specific virulence factors.
+     - **SeqSero2**: Determines *Salmonella enterica* serotypes based on O and H antigen genes.
+     - **Pasty**: Determines *Pseudomonas aeruginosa* serogroups based on the O-antigen locus.
+     - **ABRICATE (`resfinder` & `vfdb`)**: Default fallback for species without custom modules, profiling acquired AMR genes and general bacterial virulence factors.
+9. **Phylogeny Sample Sheet Compilation (`MAKE_ASSEMBLY_SHEET`)**:
+   - Compiles real file paths of all assembled scaffolds into `results/phylogeny/assembly_sample_sheet.txt` for downstream phylogenetic analyses (e.g. core-genome SNP alignment or tree building).
+
+---
+
+## Species-Specific Profiling & Typing
+
+BactogenMiner dynamically assigns the most appropriate typing and profiling tools according to the identified species. The routing is configured in [`meta_data/species_tools.csv`](meta_data/species_tools.csv):
+
+| Species / Taxon | Group | Dedicated Tool(s) | Profiling Carried Out |
+|---|---|---|---|
+| *Klebsiella pneumoniae* complex (*K. pneumoniae*, *K. quasipneumoniae*, *K. variicola*, *K. quasivariicola*, *K. africana*) | `kpsc` | **Kleborate** | Species confirmation, MLST, virulence loci (*ybt, clb, iuc, iro, rmpA, rmpA2*), AMR determinants, K-locus (capsule) & O-antigen typing |
+| *Klebsiella oxytoca* complex (*K. oxytoca*, *K. grimontii*, *K. michiganensis*, *K. pasteurii*, *K. huaxiensis*, *K. spallanzanii*) | `kosc` | **Kleborate** | KOSC-specific typing, virulence screening, AMR profiling, surface antigen prediction |
+| *Escherichia* & *Shigella* | `escherichia` | **Kleborate**, **ECTyper**, **ABRICATE (`ecoli_vf`)** | Kleborate *Escherichia* profiling; *in silico* O:H serotyping and pathotype prediction (STEC, EPEC, ETEC, etc.); specialized *E. coli* virulence factor screening |
+| *Salmonella enterica* | `Salmonella` | **SeqSero2** | Serotype and antigenic formula prediction from assembly contigs |
+| *Pseudomonas aeruginosa* | `pseudomonas aeruginosa` | **Pasty** | *In silico* serogrouping (O1–O17) based on O-antigen biosynthesis gene clusters |
+| Other bacterial species | `other` | **ABRICATE (`resfinder`, `vfdb`)** | Comprehensive acquired AMR gene detection and general virulence factor screening |
+| *All species* | *Universal* | **MLST**, **ABRICATE (`plasmidfinder`)** | PubMLST sequence typing; plasmid replicon typing |
+
+> [!TIP]
+> **Customizing Species Mappings**:
+> You can extend or customize species dispatching by modifying `meta_data/species_tools.csv`. The workflow matches the species string identified by GAMBIT or Bracken against the first column of the CSV.
 
 ---
 
@@ -186,7 +237,8 @@ Ensure required databases are accessible before running species classification o
 | **Kraken2 / Bracken** | K-mer classification & abundance | [Ben Langmead AWS Indexes](https://benlangmead.github.io/aws-indexes/k2) |
 | **Bakta DB** *(Optional)* | Full or light annotation database | Automatically downloaded if `--use_bakta` or via [Bakta Documentation](https://github.com/oschwengers/bakta#database) |
 | **BUSCO Lineage** | Gene completeness benchmarking | Auto-downloaded during run (`bacteria_odb12`) |
-| **VFDB / PlasmidFinder** | Virulence and plasmid typing | Bundled within ABRicate |
+| **ABRICATE Databases** | Virulence, plasmid, and AMR screening | Bundled within ABRicate (`vfdb`, `plasmidfinder`, `resfinder`, `ecoli_vf`) |
+| **Kleborate / ECTyper / SeqSero2 / Pasty** | Species-specific serotyping & genotyping | Embedded within tool containers / conda environments |
 
 ---
 
@@ -389,9 +441,19 @@ results/
 │   │   └── <sample_id>_bracken_output.txt      # Bracken abundance estimation table
 │   ├── mlst/
 │   │   └── <sample_id>_mlst_report.csv         # PubMLST sequence typing and allele profiles
+│   ├── Kleborate/                              # (Generated for KPSC, KOSC, and Escherichia)
+│   │   └── <sample_id>_output.txt              # Detailed Kleborate genotyping, virulence & AMR results
+│   ├── ECTyper/                                # (Generated for Escherichia and Shigella)
+│   │   └── output.tsv                          # O:H serotype and pathotype predictions
+│   ├── SeqSero2/                               # (Generated for Salmonella)
+│   │   └── SeqSero_result_*/SeqSero_result.txt # Salmonella serotype and antigenic formula report
+│   ├── Pasty/                                  # (Generated for Pseudomonas aeruginosa)
+│   │   └── <sample_id>_pasty.tsv               # P. aeruginosa serogroup predictions
 │   └── Abricate/
-│       ├── <sample_id>_vfdb_report.txt         # Virulence factor screening results
-│       └── <sample_id>_plasmidfinder_report.txt# Plasmid replicon typing results
+│       ├── <sample_id>_plasmidfinder_report.txt# Plasmid replicon typing (all samples)
+│       ├── <sample_id>_ecoli_vf_report.txt     # Specialized E. coli virulence factors (Escherichia only)
+│       ├── <sample_id>_resfinder_report.txt    # Acquired AMR gene screening (other/unrouted taxa)
+│       └── <sample_id>_vfdb_report.txt         # Virulence factor screening results (other/unrouted taxa)
 ├── phylogeny/
 │   └── assembly_sample_sheet.txt               # Aggregated sample manifest for downstream phylogenetic analysis
 └── Bakta_DB/                                   # Downloaded Bakta database (if generated)
@@ -419,7 +481,20 @@ If you use BactogenMiner in your research, please cite the tools utilized:
 - **Kraken2**: Wood, D. E., et al. (2019). Improved metagenomic analysis with Kraken 2. *Genome Biology*, 20(1), 257.
 - **Bracken**: Lu, J., et al. (2017). Bracken: estimating species abundance in metagenomics data. *PeerJ Computer Science*, 3, e104.
 - **MLST**: Seemann, T. `mlst` (GitHub repository: [https://github.com/tseemann/mlst](https://github.com/tseemann/mlst)).
+- **Kleborate**: Lam, M. M. C., et al. (2021). A genomic surveillance framework and genotyping tool for *Klebsiella pneumoniae* and its related species complex. *Nature Communications*, 12(1), 4188.
+- **ECTyper**: Laing, C., et al. `ECTyper`: In silico prediction of *Escherichia coli* serotype. (GitHub repository: [https://github.com/phac-nml/ec-typer](https://github.com/phac-nml/ec-typer)).
+- **SeqSero2**: Zhang, S., et al. (2019). SeqSero2: rapid and improved *Salmonella* serotype determination using whole-genome sequencing data. *Applied and Environmental Microbiology*, 85(23), e01746-19.
+- **Pasty**: Petit, R. A. III. `pasty`: In silico serogrouping of *Pseudomonas aeruginosa* isolates. (GitHub repository: [https://github.com/rpetit3/pasty](https://github.com/rpetit3/pasty)).
 - **ABRICATE**: Seemann, T. `abricate` (GitHub repository: [https://github.com/tseemann/abricate](https://github.com/tseemann/abricate)).
+- **ResFinder**: Zankari, E., et al. (2012). Identification of acquired antimicrobial resistance genes. *Journal of Antimicrobial Chemotherapy*, 67(11), 2640–2644.
+- **PlasmidFinder**: Carattoli, A., et al. (2014). In silico detection and typing of plasmids using PlasmidFinder and pMLST. *Antimicrobial Agents and Chemotherapy*, 58(7), 3895–3903.
+- **VFDB**: Liu, B., et al. (2022). VFDB 2022: a general classification system for bacterial virulence factors for better understand virulence diversity. *Nucleic Acids Research*, 50(D1), D912–D917.
+
+---
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
 
 ---
 
