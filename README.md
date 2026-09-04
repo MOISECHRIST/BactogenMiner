@@ -59,6 +59,7 @@
   - **Kleborate**: In-depth genomic surveillance for *Klebsiella pneumoniae* species complex (KPSC), *Klebsiella oxytoca* species complex (KOSC), and *Escherichia* (MLST, virulence loci like yersiniabactin, aerobactin, colibactin, salmochelin, rmpA/rmpA2, acquired AMR genes, and K/O capsule loci).
   - **ECTyper**: *In silico* O and H serotyping and pathotype prediction for *Escherichia coli* and *Shigella*.
   - **SeqSero2**: High-accuracy *Salmonella* serotype determination from assemblies.
+  - **LisSero**: High-accuracy *in silico* serotype and molecular PCR-group prediction (e.g. IIa, IIb, IIc, IVb) for *Listeria monocytogenes* and related *Listeria* species.
   - **Pasty**: *In silico* serogrouping for *Pseudomonas aeruginosa* based on the O-antigen biosynthesis locus.
 - **Universal Sequence Typing, Virulence & Plasmid Profiling**:
   - Multi-Locus Sequence Typing (**MLST**) against PubMLST typing schemes with automatic scheme detection.
@@ -126,6 +127,7 @@ flowchart TD
         ROUTE -->|KPSC / KOSC / Escherichia| KLEBORATE["Kleborate\n(Virulence, AMR, K/O Loci)"]
         ROUTE -->|Escherichia / Shigella| ECTYPER["ECTyper & ABRICATE\n(O:H Serotype, Pathotype, ecoli_vf)"]
         ROUTE -->|Salmonella| SEQSERO2["SeqSero2\n(Salmonella Serotyping)"]
+        ROUTE -->|Listeria| LISSERO["LisSero\n(Listeria Serotyping)"]
         ROUTE -->|Pseudomonas aeruginosa| PASTY["Pasty\n(Serogroup Prediction)"]
         ROUTE -->|Other Bacterial Taxa| GENERAL_AMR["ABRICATE\n(ResFinder & VFDB)"]
     end
@@ -150,6 +152,7 @@ flowchart TD
         KLEBORATE --> OUT
         ECTYPER --> OUT
         SEQSERO2 --> OUT
+        LISSERO --> OUT
         PASTY --> OUT
         GENERAL_AMR --> OUT
         MAKE_SHEET --> PHYLO_OUT["results/phylogeny/assembly_sample_sheet.txt"]
@@ -189,6 +192,7 @@ flowchart TD
      - **ECTyper**: Performs *in silico* O and H serotyping and pathotype prediction for *Escherichia* and *Shigella*.
      - **ABRICATE (`ecoli_vf`)**: Profiles *Escherichia*-specific virulence factors.
      - **SeqSero2**: Determines *Salmonella enterica* serotypes based on O and H antigen genes.
+     - **LisSero**: Performs *in silico* serotyping and molecular PCR-group prediction for *Listeria monocytogenes* and related *Listeria* species.
      - **Pasty**: Determines *Pseudomonas aeruginosa* serogroups based on the O-antigen locus.
      - **ABRICATE (`resfinder` & `vfdb`)**: Default fallback for species without custom modules, profiling acquired AMR genes and general bacterial virulence factors.
 9. **Phylogeny Sample Sheet Compilation (`MAKE_ASSEMBLY_SHEET`)**:
@@ -206,13 +210,14 @@ BactogenMiner dynamically assigns the most appropriate typing and profiling tool
 | *Klebsiella oxytoca* complex (*K. oxytoca*, *K. grimontii*, *K. michiganensis*, *K. pasteurii*, *K. huaxiensis*, *K. spallanzanii*) | `kosc` | **Kleborate** | KOSC-specific typing, virulence screening, AMR profiling, surface antigen prediction |
 | *Escherichia* & *Shigella* | `escherichia` | **Kleborate**, **ECTyper**, **ABRICATE (`ecoli_vf`)** | Kleborate *Escherichia* profiling; *in silico* O:H serotyping and pathotype prediction (STEC, EPEC, ETEC, etc.); specialized *E. coli* virulence factor screening |
 | *Salmonella enterica* | `Salmonella` | **SeqSero2** | Serotype and antigenic formula prediction from assembly contigs |
-| *Pseudomonas aeruginosa* | `pseudomonas aeruginosa` | **Pasty** | *In silico* serogrouping (O1–O17) based on O-antigen biosynthesis gene clusters |
+| *Pseudomonas aeruginosa* | `pseudomonas_aeruginosa` | **Pasty** | *In silico* serogrouping (O1–O17) based on O-antigen biosynthesis gene clusters |
+| *Listeria* (*L. monocytogenes*, etc.) | `listeria` | **LisSero** | *In silico* serotype and molecular PCR-group prediction (e.g. IIa, IIb, IIc, IVb) from assembly contigs |
 | Other bacterial species | `other` | **ABRICATE (`resfinder`, `vfdb`)** | Comprehensive acquired AMR gene detection and general virulence factor screening |
 | *All species* | *Universal* | **MLST**, **ABRICATE (`plasmidfinder`)** | PubMLST sequence typing; plasmid replicon typing |
 
 > [!TIP]
 > **Customizing Species Mappings**:
-> You can extend or customize species dispatching by modifying `meta_data/species_tools.csv`. The workflow matches the species string identified by GAMBIT or Bracken against the first column of the CSV.
+> You can extend or customize species dispatching by modifying `meta_data/species_tools.csv`. The workflow matches the species string identified by GAMBIT or Bracken against the first column pattern in the CSV (e.g. any taxon name containing "Listeria" routes to `LisSero`).
 
 ---
 
@@ -238,7 +243,7 @@ Ensure required databases are accessible before running species classification o
 | **Bakta DB** *(Optional)* | Full or light annotation database | Automatically downloaded if `--use_bakta` or via [Bakta Documentation](https://github.com/oschwengers/bakta#database) |
 | **BUSCO Lineage** | Gene completeness benchmarking | Auto-downloaded during run (`bacteria_odb12`) |
 | **ABRICATE Databases** | Virulence, plasmid, and AMR screening | Bundled within ABRicate (`vfdb`, `plasmidfinder`, `resfinder`, `ecoli_vf`) |
-| **Kleborate / ECTyper / SeqSero2 / Pasty** | Species-specific serotyping & genotyping | Embedded within tool containers / conda environments |
+| **Kleborate / ECTyper / SeqSero2 / LisSero / Pasty** | Species-specific serotyping & genotyping | Embedded within tool containers / conda environments |
 
 ---
 
@@ -447,6 +452,8 @@ results/
 │   │   └── output.tsv                          # O:H serotype and pathotype predictions
 │   ├── SeqSero2/                               # (Generated for Salmonella)
 │   │   └── SeqSero_result_*/SeqSero_result.txt # Salmonella serotype and antigenic formula report
+│   ├── LisSero/                                # (Generated for Listeria)
+│   │   └── <sample_id>_lissero_report.txt      # LisSero serogroup and marker gene report
 │   ├── Pasty/                                  # (Generated for Pseudomonas aeruginosa)
 │   │   └── <sample_id>_pasty.tsv               # P. aeruginosa serogroup predictions
 │   └── Abricate/
@@ -484,6 +491,7 @@ If you use BactogenMiner in your research, please cite the tools utilized:
 - **Kleborate**: Lam, M. M. C., et al. (2021). A genomic surveillance framework and genotyping tool for *Klebsiella pneumoniae* and its related species complex. *Nature Communications*, 12(1), 4188.
 - **ECTyper**: Laing, C., et al. `ECTyper`: In silico prediction of *Escherichia coli* serotype. (GitHub repository: [https://github.com/phac-nml/ec-typer](https://github.com/phac-nml/ec-typer)).
 - **SeqSero2**: Zhang, S., et al. (2019). SeqSero2: rapid and improved *Salmonella* serotype determination using whole-genome sequencing data. *Applied and Environmental Microbiology*, 85(23), e01746-19.
+- **LisSero**: Petit, R. A. III, et al. / Microbiological Diagnostic Unit Public Health Laboratory (MDU PHL). `LisSero`: *In silico* serotype prediction for *Listeria monocytogenes*. (GitHub repository: [https://github.com/MDU-PHL/LisSero](https://github.com/MDU-PHL/LisSero)).
 - **Pasty**: Petit, R. A. III. `pasty`: In silico serogrouping of *Pseudomonas aeruginosa* isolates. (GitHub repository: [https://github.com/rpetit3/pasty](https://github.com/rpetit3/pasty)).
 - **ABRICATE**: Seemann, T. `abricate` (GitHub repository: [https://github.com/tseemann/abricate](https://github.com/tseemann/abricate)).
 - **ResFinder**: Zankari, E., et al. (2012). Identification of acquired antimicrobial resistance genes. *Journal of Antimicrobial Chemotherapy*, 67(11), 2640–2644.
