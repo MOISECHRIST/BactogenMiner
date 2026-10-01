@@ -376,7 +376,7 @@ nextflow run main.nf \
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `--use_gambit` | Boolean | `true` | Enable GAMBIT species identification |
+| `--use_gambit` | Boolean | `false` | Enable GAMBIT species identification |
 | `--gambit_db` | String | `null` | Directory path to GAMBIT reference database |
 | `--use_kraken2` | Boolean | `false` | Enable Kraken2 taxonomic classification and Bracken re-estimation |
 | `--kraken_db` | String | `null` | Path to Kraken2 reference database directory |
