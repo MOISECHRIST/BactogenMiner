@@ -1,4 +1,4 @@
-include { SINGLE_SAMPLE_PROCESSING }      from "./workflows/single_sample_pipeline.nf"
+include { SHORT_READS_SINGLE_PROCESSING }      from "./workflows/single_sample_pipeline.nf"
 include { MAKE_ASSEMBLY_SHEET      }      from "./modules/make_assembly_sheet.nf"
 workflow {
     main:
@@ -15,6 +15,6 @@ workflow {
         } else {
             error "Please provide either --reads or --samplesheet_csv"
         }
-        SINGLE_SAMPLE_PROCESSING(reads_ch)
-        MAKE_ASSEMBLY_SHEET(SINGLE_SAMPLE_PROCESSING.out.scafolds.collect())
+        SHORT_READS_SINGLE_PROCESSING(reads_ch)
+        MAKE_ASSEMBLY_SHEET(SHORT_READS_SINGLE_PROCESSING.out.scafolds.collect())
 }
