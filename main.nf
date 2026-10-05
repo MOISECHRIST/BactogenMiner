@@ -1,5 +1,22 @@
+#!/home/mmeka/.local/bin/nextflow
+
 include { SHORT_READS_SINGLE_PROCESSING }      from "./workflows/single_sample_pipeline.nf"
 include { MAKE_ASSEMBLY_SHEET      }      from "./modules/make_assembly_sheet.nf"
+
+def startMessage(){
+        def c_reset  = "\033[0m"
+        def c_dim    = "\033[2m"
+        def c_bold   = "\033[1m"
+        def c_cyan   = "\033[36m"
+        def c_yellow = "\033[33m"
+        def c_green  = "\033[32m"
+    log.info """
+    ${c_bold}================================================================================${c_reset}
+    ${c_cyan}${c_bold}  B A C T O G E N M I N E R   v1.0.0${c_reset}
+      Bacterial WGS Typing, Annotation & Phylogeny Preparation Pipeline
+    ${c_bold}================================================================================${c_reset}
+    """
+}
 
 def helpMessage() {
         def c_reset  = "\033[0m"
@@ -10,11 +27,6 @@ def helpMessage() {
         def c_green  = "\033[32m"
     
         log.info """
-    ${c_bold}================================================================================${c_reset}
-    ${c_cyan}${c_bold}  B A C T O G E N M I N E R   v1.0.0${c_reset}
-      Bacterial WGS Typing, Annotation & Phylogeny Preparation Pipeline
-    ${c_bold}================================================================================${c_reset}
-    
     ${c_yellow}Usage:${c_reset}
       nextflow run main.nf -profile <docker|conda> [options]
     
@@ -23,6 +35,7 @@ def helpMessage() {
       nextflow run main.nf -profile docker \\
           --reads "data/*_{1,2}.fastq.gz" \\
           --sample_name "sample01" \\
+          --use_gambit \\
           --gambit_db "/path/to/gambit/db"
 
       ${c_dim}# 2. Multi-sample batch via CSV samplesheet${c_reset}
@@ -87,6 +100,7 @@ def helpMessage() {
 
 workflow {
     main:
+        startMessage()
         if (params.help) {
                 helpMessage()
                 exit 0
@@ -106,5 +120,5 @@ workflow {
             error "Please provide either --reads or --samplesheet_csv"
         }
         SHORT_READS_SINGLE_PROCESSING(reads_ch)
-        MAKE_ASSEMBLY_SHEET(SHORT_READS_SINGLE_PROCESSING.out.scafolds.collect())
+        MAKE_ASSEMBLY_SHEET(SHORT_READS_SINGLE_PROCESSING.out.scafolds.collect(flat: false))
 }

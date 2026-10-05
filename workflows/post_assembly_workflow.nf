@@ -11,8 +11,10 @@ include { GET_SPECIES_GAMBIT           }      from "../modules/get_species_gambi
 include { JOIN_SPECIES_TOOLS           }      from "../modules/join_species_with_tools.nf"
 include { KLEBORATE                    }      from "../modules/kleborate.nf"
 include { ECTYPER                      }      from "../modules/ectyper.nf"
+include { ECTYPER_GET_DB               }      from "../modules/ectyper_get_db.nf"
 include { SEQSERO2                     }      from "../modules/seqsero2.nf"
 include { LISSERO                      }      from "../modules/lissero.nf"
+include { PASTY                        }      from "../modules/pasty.nf"
 
 
 workflow SPECIES_CLASSIFICATION {
@@ -64,12 +66,12 @@ workflow SEROTYPING {
     main:
         //Species specific screening genome assemblies
         JOIN_SPECIES_TOOLS(species_name)
-        sp_group_ch = JOIN_SPECIES_TOOLS.out.sp_group.map {sp -> sp[1]}
-        tools_ch    = JOIN_SPECIES_TOOLS.out.tools.map {tools -> tools[1]}
+        sp_group_ch = JOIN_SPECIES_TOOLS.out.sp_group   
+        tools_ch    = JOIN_SPECIES_TOOLS.out.tools      
 
         routed = scafolds_ch
-            .combine(sp_group_ch)
-            .combine(tools_ch)
+            .join(sp_group_ch)      
+            .join(tools_ch)         
             .branch { sample_name, scafolds, sp_group, tools ->
                 kleborate: tools == "kleborate"
                 seqsero:   tools == "SeqSero2"
@@ -79,17 +81,22 @@ workflow SEROTYPING {
             }
 
         KLEBORATE(
-            routed.kleborate.map { sn, sc, sp, tl -> tuple(sn, sc) },
-            routed.kleborate.map { sn, sc, sp, tl -> sp }
+            routed.kleborate.map { sn, sc, sp, tl -> tuple(sn, sc, sp) }
         )
         ecoli_only = routed.kleborate.filter { sn, sc, sp, tl -> sp == "escherichia" }
         ABRICATE_ECOLI(ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) }, "ecoli_vf")
-        ECTYPER(ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) })
+        if(params.ectyper_db){
+            ECTYPER(ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) }, file(params.ectyper_db))
+        } else {
+            ECTYPER_GET_DB()
+            ECTYPER(ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) }, ECTYPER_GET_DB.out.ectyper_db)
+        }
 
         SEQSERO2(routed.seqsero.map {sn, sc, sp, tl -> tuple(sn, sc)}, "4")//for illumina assembly fasta
         //SEQSERO2(routed.seqsero.map {sn, sc, sp, tl -> tuple(sn, sc)}, "5")//for Long Reads assembly fasta
 
         LISSERO(routed.lissero.map {sn, sc, sp, tl -> tuple(sn, sc)})
+        PASTY(routed.pasty.map {sn, sc, sp, tl -> tuple(sn, sc)})
 
         ABRICATE_AMR(routed.other.map { sn, sc, sp, tl -> tuple(sn, sc) }, "resfinder")
         ABRICATE_VFDB(routed.other.map { sn, sc, sp, tl -> tuple(sn, sc) }, "vfdb")
@@ -100,6 +107,7 @@ workflow SEROTYPING {
         ectyper               = ECTYPER.out.ectyper_results
         seqsero2              = SEQSERO2.out.seqsero2_results
         lissero               = LISSERO.out.lissero_results
+        pasty                 = PASTY.out.pasty_results
         abricate_ecoli        = ABRICATE_ECOLI.out.abricate_results
         abricate_amr          = ABRICATE_AMR.out.abricate_results
         abricate_vfdb         = ABRICATE_VFDB.out.abricate_results

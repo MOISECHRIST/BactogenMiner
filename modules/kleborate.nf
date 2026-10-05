@@ -20,8 +20,7 @@ process KLEBORATE{
     publishDir "${params.outdir}/${sample_name}", mode: 'copy'
 
     input:
-    tuple val(sample_name), path(scafolds)
-    val(kleborate_preset)
+    tuple val(sample_name), path(scafolds), val(kleborate_preset)
 
     output:
     tuple val(sample_name), path("Kleborate"), emit: kleborate_results

@@ -19,13 +19,20 @@ process ECTYPER{
 
     input:
     tuple val(sample_name), path(scafolds)
+    path(ectyper_db)
 
     output:
     tuple val(sample_name), path("ECTyper"), emit: ectyper_results
 
     script:
     """
+    if [ -f "${ectyper_db}.txt" ]; then
+        ln -sf "${ectyper_db}.txt" "${ectyper_db}.txt"
+    elif [ ! -f "${ectyper_db}.txt" ]; then
+        mash info -t "${ectyper_db}" > "${ectyper_db}.txt"
+    fi
+
     ectyper --input ${scafolds} --output ECTyper \\
-     --pathotype --cores ${task.cpus} 
+     --pathotype --cores ${task.cpus} -r ${ectyper_db}
     """
 }

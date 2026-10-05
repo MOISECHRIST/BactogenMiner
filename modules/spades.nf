@@ -11,39 +11,38 @@ SPADES : Process to do de novo assembly of our genome using spades
         spades_results : path to a folder containing all spades results
 */
 
-
-process SPADES{
+process SPADES {
     tag "${sample_name}"
     label 'high'
+
     publishDir "${params.outdir}/${sample_name}", pattern: "spades/{${sample_name}.fasta,${sample_name}.fastg}", mode: 'copy'
 
     input:
     tuple val(sample_name), path(reads)
 
     output:
-    tuple val(sample_name), path("spades/${sample_name}.fasta"), emit: scafolds
-    tuple val(sample_name), path("spades/${sample_name}.fastg"), emit: assembly_graph
+    tuple val(sample_name), path("spades/${sample_name}.fasta"), emit: scafolds, optional: true
+    tuple val(sample_name), path("spades/${sample_name}.fastg"), emit: assembly_graph, optional: true
+    tuple val(sample_name), env('ASSEMBLY_END'), emit: assembly_status
 
     script:
-    if (reads instanceof List && reads.size() == 2) {
-        """
-        mkdir spades
+    def input_reads = (reads instanceof List && reads.size() == 2) ?
+        "-1 '${reads[0]}' -2 '${reads[1]}'" : "-s '${reads}'"
+    """
+    mkdir -p spades
 
-        spades.py -1 '${reads[0]}' -2 '${reads[1]}' -o 'spades' \\
-        --threads '${task.cpus}'
+    set +e
+    spades.py ${input_reads} -o spades --threads ${task.cpus} --phred-offset 33
+    status=\$?
+    set -e
 
+    if [ \$status -eq 0 ] && [ -s spades/scaffolds.fasta ]; then
         mv spades/scaffolds.fasta 'spades/${sample_name}.fasta'
         mv spades/assembly_graph.fastg 'spades/${sample_name}.fastg'
-        """
-    } else {
-        """
-        mkdir spades
-        
-        spades.py -s '${reads}' -o 'spades' \\
-        --threads '${task.cpus}'
-
-        mv spades/scaffolds.fasta 'spades/${sample_name}.fasta'
-        mv spades/assembly_graph.fastg 'spades/${sample_name}.fastg'
-        """
-    }
+        ASSEMBLY_END=PASS
+    else
+        echo "SPAdes failed for ${sample_name} (exit \$status), see spades/spades.log" >&2
+        ASSEMBLY_END=FAIL
+    fi
+    """
 }

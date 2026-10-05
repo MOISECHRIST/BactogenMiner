@@ -17,13 +17,16 @@ process MAKE_ASSEMBLY_SHEET {
     publishDir "${params.outdir}/phylogeny", mode: 'copy'
 
     input:
-    tuple val(sample_name), path(scafolds)
+    val(samples)   // list of [sample_name, scafolds]
 
     output:
     path("assembly_sample_sheet.txt"), emit: assembly_sheet
 
     script:
+    def rows = samples.collect { sn, sc -> "${sn}\t${sc.toRealPath()}" }.join("\n")
     """
-    echo "${sample_name}\t${scafolds.toRealPath()}" >> assembly_sample_sheet.txt
+    cat > assembly_sample_sheet.txt <<'EOF'
+${rows}
+EOF
     """
 }
