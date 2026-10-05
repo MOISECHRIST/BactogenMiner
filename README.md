@@ -1,6 +1,6 @@
 # BactogenMiner
 
-[![Nextflow](https://img.shields.io/badge/Nextflow-%E2%89%A522.10.0-23AA62.svg)](https://www.nextflow.io/)
+[![Nextflow](https://img.shields.io/badge/Nextflow-%E2%89%A525.10.0-23AA62.svg)](https://www.nextflow.io/)
 [![DSL2](https://img.shields.io/badge/DSL-2-23AA62.svg)](https://www.nextflow.io/)
 [![Docker](https://img.shields.io/badge/Docker-enabled-2496ED.svg)](https://www.docker.com/)
 [![Conda](https://img.shields.io/badge/Conda-enabled-44A833.svg)](https://docs.conda.io/)
@@ -18,12 +18,14 @@
 - [Species-Specific Profiling & Typing](#species-specific-profiling--typing)
 - [Prerequisites & Dependencies](#prerequisites--dependencies)
 - [Reference Databases](#reference-databases)
+- [Tool Versions](#tool-versions)
 - [Installation](#installation)
 - [Usage](#usage)
   - [1. Single-sample Mode](#1-single-sample-mode)
   - [2. Multi-sample Mode (Samplesheet)](#2-multi-sample-mode-samplesheet)
   - [3. Execution Profiles](#3-execution-profiles)
 - [Parameters Reference](#parameters-reference)
+  - [General](#general)
   - [Input / Output](#input--output)
   - [Pre-Assembly Read Screening & Quality Gating](#pre-assembly-read-screening--quality-gating)
   - [Taxonomic Classification](#taxonomic-classification)
@@ -52,7 +54,7 @@
   - Rapid standard bacterial annotation via **Prokka** (default).
   - High-precision annotation via **Bakta** (with automated database download or local database support).
 - **Dual Taxonomic Classification Support**:
-  - Ultra-fast genomic distance-based classification via **GAMBIT** with automated top-species resolution (default).
+  - Ultra-fast genomic distance-based classification via **GAMBIT** with automated top-species resolution (enable with `--use_gambit`).
   - K-mer based metagenomic classification with **Kraken2** and abundance re-estimation with **Bracken**.
 - **Dynamic Species-Specific Typing & Serotyping**:
   - **Automated Species Dispatching**: Matches top species against `meta_data/species_tools.csv` to dynamically trigger specialized profiling tools.
@@ -181,8 +183,8 @@ flowchart TD
    - **Prokka** *(Default)*: Rapidly annotates CDS, tRNA, rRNA, and signal peptides, outputting GFF3, GenBank, and FASTA files.
    - **Bakta** *(Optional)*: High-precision bacterial genome annotation. Downloads required databases automatically (`BAKTA_BD`) if a local database path is not specified.
 6. **Taxonomic Classification (`GAMBIT` / `KRAKEN2` + `BRACKEN`)**:
-   - **GAMBIT** *(Default)*: Rapid species identification using genomic signatures against curated reference databases.
-   - **Kraken2** & **Bracken** *(Optional)*: Exact k-mer matching with Bayesian abundance re-estimation and top-species resolution.
+   - **GAMBIT** *(enable with `--use_gambit`)*: Rapid species identification using genomic signatures against curated reference databases.
+   - **Kraken2** & **Bracken** *(enable with `--use_kraken2`)*: Exact k-mer matching with Bayesian abundance re-estimation and top-species resolution.
 7. **Universal Sequence & Plasmid Profiling**:
    - **MLST**: Scans contigs against PubMLST databases to determine sequence type (ST) and allele profiles.
    - **ABRICATE (`plasmidfinder`)**: Screens all assemblies for known plasmid replicons.
@@ -223,7 +225,7 @@ BactogenMiner dynamically assigns the most appropriate typing and profiling tool
 
 ## Prerequisites & Dependencies
 
-- **Nextflow** (>= 22.10.0)
+- **Nextflow** (>= 25.10.0 — the pipeline uses the `params {}` block in `nextflow.config`, the lowercase `channel` factory and `outputDir`)
 - **Container Engine or Package Manager**:
   - **Docker** (recommended for seamless reproducibility; uses official BioContainers and `mmcj/check_reads:1.1`)
   - **Conda / Mamba** (using environment definitions in `envs/`)
@@ -243,7 +245,26 @@ Ensure required databases are accessible before running species classification o
 | **Bakta DB** *(Optional)* | Full or light annotation database | Automatically downloaded if `--use_bakta` or via [Bakta Documentation](https://github.com/oschwengers/bakta#database) |
 | **BUSCO Lineage** | Gene completeness benchmarking | Auto-downloaded during run (`bacteria_odb12`) |
 | **ABRICATE Databases** | Virulence, plasmid, and AMR screening | Bundled within ABRicate (`vfdb`, `plasmidfinder`, `resfinder`, `ecoli_vf`) |
-| **Kleborate / ECTyper / SeqSero2 / LisSero / Pasty** | Species-specific serotyping & genotyping | Embedded within tool containers / conda environments |
+| **ECTyper DB** *(Optional)* | *E. coli* serotyping database | Provide with `--ectyper_db`; otherwise handled by the `ECTYPER_GET_DB` step |
+| **Kleborate / SeqSero2 / LisSero / Pasty** | Species-specific serotyping & genotyping | Embedded within tool containers / conda environments |
+
+---
+
+## Tool Versions
+
+Container images pinned in `nextflow.config` (Docker profile):
+
+| Tool | Version | Tool | Version |
+|---|---|---|---|
+| FastQC | 0.12.1 | Prokka | 1.15.6 |
+| fastp | 1.3.6 | Bakta | 1.9.4 |
+| SPAdes | 4.3.0 | GAMBIT | 1.2.0 |
+| QUAST | 5.3.0 | Kraken2 / Bracken | 2.17.1 / 3.1p1 |
+| BUSCO | 6.1.0 | MLST | 2.35.0 |
+| Bandage | 0.8.1 | ABRicate | 1.4.0 |
+| Kleborate | 3.2.4 | ECTyper | 2.0.0 |
+| SeqSero2 | 1.3.2 | LisSero | 0.4.10 |
+| Pasty | 2.2.1 | CHECK_READS (custom) | `mmcj/check_reads:1.1` |
 
 ---
 
@@ -252,8 +273,8 @@ Ensure required databases are accessible before running species classification o
 Clone the repository:
 
 ```bash
-git clone https://github.com/MOISECHRIST/bacteria_typing-phylogeny.git
-cd bacteria_typing-phylogeny
+git clone https://github.com/MOISECHRIST/BactogenMiner.git
+cd BactogenMiner
 ```
 
 Ensure Nextflow is installed and functioning:
@@ -268,7 +289,7 @@ nextflow -version
 
 ### 1. Single-sample Mode
 
-To analyze a single sample with paired-end reads:
+To analyze a **single** sample with paired-end reads (the pattern must match exactly one pair):
 
 ```bash
 nextflow run main.nf \
@@ -287,6 +308,7 @@ nextflow run main.nf \
   -profile conda \
   --reads "data/sample01.fastq.gz" \
   --sample_name "sample01" \
+  --use_gambit \
   --gambit_db "/path/to/gambit/db" \
   --outdir "results"
 ```
@@ -309,9 +331,16 @@ Run the pipeline:
 nextflow run main.nf \
   -profile docker \
   --samplesheet_csv "samplesheet.csv" \
+  --use_gambit \
   --gambit_db "/path/to/gambit/db" \
   --outdir "results"
 ```
+
+> [!IMPORTANT]
+> Species-specific typing (Kleborate, ECTyper, SeqSero2, LisSero, Pasty) depends on the species name returned by the classifier. Enable at least one of `--use_gambit` or `--use_kraken2`; otherwise samples cannot be routed to dedicated tools.
+
+> [!NOTE]
+> `--reads` + `--sample_name` is designed for **one sample only**: every file matched by the pattern is assigned to the same `--sample_name`. Use `--samplesheet_csv` for several samples. Add `-resume` to any command to restart from cached results.
 
 ---
 
@@ -352,11 +381,17 @@ nextflow run main.nf \
 
 ## Parameters Reference
 
+### General
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `--help` | Boolean | `false` | Print the help page and exit |
+
 ### Input / Output
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `--reads` | String | `null` | File path pattern for single or paired-end FASTQ reads (e.g. `"data/*_{1,2}.fastq.gz"`) |
+| `--reads` | String | `null` | File path pattern for the FASTQ reads of one sample (e.g. `"data/sample01_{1,2}.fastq.gz"`) |
 | `--samplesheet_csv` | String | `null` | Path to CSV samplesheet with header `sample_id,fastq_1,fastq_2` |
 | `--sample_name` | String | `'sample01'` | Identifier used when running in single-sample mode with `--reads` |
 | `--outdir` | String | `'results'` | Output directory where final results will be organized |
@@ -398,6 +433,7 @@ nextflow run main.nf \
 |---|---|---|---|
 | `--busco_lineage` | String | `'bacteria_odb12'` | BUSCO lineage dataset for genome completeness assessment |
 | `--mlst_scheme` | String | `null` | Specific MLST scheme (e.g. `ecoli`, `saureus`). Automatically inferred if omitted |
+| `--ectyper_db` | String | `null` | Optional path to a pre-downloaded ECTyper database (used for *Escherichia* / *Shigella*) |
 
 ### Compute Resources
 

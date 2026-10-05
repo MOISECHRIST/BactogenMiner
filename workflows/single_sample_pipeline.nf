@@ -1,3 +1,5 @@
+#!/usr/bin/env nextflow
+
 include { SAMPLE_QC  as SHORT_READS_SAMPLE_QC                     } from "./short_reads_workflows.nf"
 include { ASSEMBLY_ANNOTATION as SHORT_READS_ASSEMBLY_ANNOTATION  } from "./short_reads_workflows.nf"
 include { SPECIES_CLASSIFICATION                                  } from "./post_assembly_workflow.nf"

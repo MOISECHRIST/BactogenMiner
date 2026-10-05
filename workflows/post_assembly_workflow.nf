@@ -1,3 +1,5 @@
+#!/usr/bin/env nextflow
+
 include { KRAKEN2                      }      from "../modules/kraken2.nf"
 include { BRACKEN                      }      from "../modules/Bracken.nf"
 include { MLST                         }      from "../modules/mlst.nf"

@@ -1,4 +1,4 @@
-#!/home/mmeka/.local/bin/nextflow
+#!/usr/bin/env nextflow
 
 /*
 AUTHOR : MEKA Moise

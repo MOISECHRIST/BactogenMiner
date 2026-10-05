@@ -1,3 +1,5 @@
+#!/usr/bin/env nextflow
+
 include { CHECK_READS               }      from "../modules/check_reads.nf"
 include { CHECK_READS as CHECK_TRIM }      from "../modules/check_reads.nf"
 include { FASTQC                    }      from "../modules/fastqc.nf"
