@@ -1,0 +1,107 @@
+%%metro title: BactogenMiner
+%%metro style: dark
+%%metro line: main | Main (Reads to Assembly) | #2db572
+%%metro line: qa | Assembly QC and Annotation | #0570b0
+%%metro line: taxonomy | Taxonomy and MLST | #8e44ad
+%%metro line: typing | Species-Specific Typing and AMR | #e84a5f
+%%metro line: plasmid | Plasmid Screening (all samples) | #ff8c42
+%%metro line: dbfetch | Database Fetch (if none given) | #f5c542
+%%metro line: filtered | Failed (warning) / Status | #8a8f98
+%%metro line: phylogeny | Phylogeny Manifest | #17a2b8
+
+graph LR
+    subgraph inputs [Input]
+        reads([Reads (one sample)])
+        samplesheet([Samplesheet (one or many)])
+    end
+
+    subgraph screening [Sample QC - Screening and Trimming]
+        check_reads([Check Reads])
+        fastqc([Fastqc])
+        fastp([Fastp])
+        check_trim([Check Trim])
+        drop_reads([Failed Reads (warning)])
+        drop_trim([Failed Trim (warning)])
+
+        check_reads -->|main| fastp
+        check_reads -->|qa| fastqc
+        fastp -->|main| check_trim
+        check_reads -->|filtered| drop_reads
+        check_trim -->|filtered| drop_trim
+    end
+
+    subgraph assembly [Assembly]
+        spades([Spades])
+    end
+
+    subgraph phylo_sec [Manifest and Status]
+        make_sheet([Make Assembly Sheet])
+        status_file([assembly_status.tsv (all samples)])
+    end
+
+    subgraph qc_annot [Assembly QC and Annotation]
+        bakta_bd([Bakta DB (if none given)])
+        bandage([Bandage (graph)])
+        quast([Quast])
+        busco([Busco])
+        prokka([Prokka (default)])
+        bakta([Bakta (use_bakta)])
+
+        bakta_bd -->|dbfetch| bakta
+    end
+
+    subgraph tax_sec [Species Classification]
+        mlst([Mlst])
+        gambit([Gambit (use_gambit)])
+        get_species_gambit([Species Gambit])
+        kraken2([Kraken2 (default)])
+        bracken([Bracken])
+        get_species_bracken([Species Bracken])
+
+        gambit -->|taxonomy| get_species_gambit
+        kraken2 -->|taxonomy| bracken
+        bracken -->|taxonomy| get_species_bracken
+    end
+
+    subgraph typing_sec [Serotyping]
+        plasmidfinder([Abricate PlasmidFinder])
+        route([Join Species Tools])
+        ectyper_db([Ectyper DB (if none given)])
+        kleborate([Kleborate - Klebsiella (KPSC, KOSC), Escherichia, Shigella])
+        abricate_ecoli([Abricate Ecoli VF - Escherichia, Shigella])
+        ectyper([Ectyper - Escherichia, Shigella])
+        seqsero2([Seqsero2 - Salmonella])
+        lissero([Lissero - Listeria])
+        pasty([Pasty - Pseudomonas aeruginosa])
+        abricate_amr([Abricate ResFinder - All Other Species])
+        abricate_vfdb([Abricate VFDB - All Other Species])
+
+        route -->|typing| kleborate
+        route -->|typing| abricate_ecoli
+        route -->|typing| ectyper
+        route -->|typing| seqsero2
+        route -->|typing| lissero
+        route -->|typing| pasty
+        route -->|typing| abricate_amr
+        route -->|typing| abricate_vfdb
+        ectyper_db -->|dbfetch| ectyper
+    end
+
+    %% Inter-section edges
+    reads -->|main| check_reads
+    samplesheet -->|main| check_reads
+    check_trim -->|main| spades
+
+    spades -->|qa| bandage
+    spades -->|qa| quast
+    spades -->|qa| busco
+    spades -->|qa| prokka
+    spades -->|qa| bakta
+    spades -->|taxonomy| mlst
+    spades -->|taxonomy| gambit
+    spades -->|taxonomy| kraken2
+    spades -->|plasmid| plasmidfinder
+    spades -->|phylogeny| make_sheet
+    spades -->|filtered| status_file
+    get_species_gambit -->|typing| route
+    get_species_bracken -->|typing| route
