@@ -18,17 +18,21 @@
 - [Species-Specific Profiling & Dynamic Routing](#species-specific-profiling--dynamic-routing)
 - [Prerequisites & Dependencies](#prerequisites--dependencies)
 - [Reference Databases](#reference-databases)
+  - [Automatic Download & Caching](#automatic-download--caching)
+  - [Using Your Own Databases](#using-your-own-databases)
 - [Tool & Container Environment](#tool--container-environment)
 - [Installation](#installation)
 - [Quick Start & Usage](#quick-start--usage)
   - [1. Single-Sample Mode](#1-single-sample-mode)
   - [2. Multi-Sample Batch Mode (Samplesheet)](#2-multi-sample-batch-mode-samplesheet)
   - [3. Execution Profiles](#3-execution-profiles)
+- [Test Dataset](#test-dataset)
 - [Parameters Reference](#parameters-reference)
   - [General](#general)
   - [Input / Output](#input--output)
   - [Pre-Assembly Read Screening & Quality Gating](#pre-assembly-read-screening--quality-gating)
   - [Taxonomic Classification](#taxonomic-classification)
+  - [Database Provisioning](#database-provisioning)
   - [Genome Annotation](#genome-annotation)
   - [Assembly QC & Sequence Typing](#assembly-qc--sequence-typing)
   - [Compute Resources](#compute-resources)
@@ -73,9 +77,12 @@
   - Plasmid replicon typing (**PlasmidFinder**) screened universally across all assembled isolates via **ABRICATE**.
   - Comprehensive acquired AMR gene detection (**ResFinder**) and general virulence factor screening (**VFDB**) for non-specialized or unrouted bacterial taxa.
 - **Phylogenomics Manifest Aggregation**:
-  - Automatically compiles real, absolute paths of all successfully assembled genome scaffolds into `results/phylogeny/assembly_sample_sheet.txt`, ready for direct input into pan-genome and phylogenomics workflows (e.g. Roary, Panaroo, SKA, RAxML, IQ-TREE).
+  - Automatically compiles real, absolute paths of all successfully assembled genome scaffolds into `results/phylogeny/assembly_sample_sheet.txt`, ready for direct input into pan-genome and phylogenomics workflows (SKA, RAxML).
 - **Turnkey Container & Environment Support**:
   - Fully containerized with **Docker** (using official BioContainers and custom images) and environment-managed with **Conda** (`envs/*.yml`).
+- **Automatic Reference Database Provisioning**:
+  - The GAMBIT and Kraken2/Bracken databases are downloaded on first use, checked against an optional MD5 checksum, extracted, and cached in `--db_cache`, so later runs and `-resume` never download them again.
+  - Your own databases are also supported, either as a local folder or as a `.tar.gz` archive (local path or URL).
 
 ---
 
@@ -173,22 +180,54 @@ BactogenMiner dynamically assigns the most appropriate typing and profiling tool
 - **Container / Environment Manager**:
   - **Docker** (Recommended; executes all processes inside verified BioContainers or custom images)
   - **Conda / Mamba** (Alternative; automatically builds environments from YAML definitions in `envs/`)
+- **`wget`, `tar` and `md5sum`**: used by the database download and extraction steps (`GET_DB`, `UNTAR_DB`).
+- **Internet access** on the first run to fetch reference databases (skip it by passing local databases with `--gambit_db` / `--kraken_db`).
 
 ---
 
 ## Reference Databases
 
-Ensure reference databases are available before executing taxonomic classification or advanced annotation:
+BactogenMiner provisions the GAMBIT and Kraken2/Bracken reference databases for you, so you do not need to download them manually.
 
-| Database / Tool | Purpose | Source / Notes |
+| Database / Tool | Purpose | Default source / Notes |
 |---|---|---|
-| **GAMBIT Database** | Genomic distance classification | [GAMBIT Databases](https://gambit-genomics.readthedocs.io/en/latest/databases.html). Pass with `--gambit_db /path/to/gambit/db` |
-| **Kraken2 / Bracken Database** | K-mer classification & abundance | [Ben Langmead AWS Indexes](https://benlangmead.github.io/aws-indexes/k2). Pass with `--kraken_db /path/to/k2_db` |
+| **GAMBIT Database** | Genomic distance classification | `gambit_db.tar.gz` from [Zenodo](https://zenodo.org/records/23638987) (`--gambit_db_url`). Override with `--gambit_db`. See [GAMBIT Databases](https://gambit-genomics.readthedocs.io/en/latest/databases.html) |
+| **Kraken2 / Bracken Database** | K-mer classification & abundance | `k2_standard_08_GB_20260626.tar.gz` from the [Ben Langmead AWS Indexes](https://benlangmead.github.io/aws-indexes/k2) (`--kraken_db_url`). Override with `--kraken_db` |
 | **Bakta Database** | High-precision genome annotation | Pass with `--bakta_db /path/to/bakta_db` or omit to auto-download via `BAKTA_BD` (`--bakta_db_type light` or `full`) |
 | **BUSCO Lineage** | Core gene completeness | Automatically downloaded during execution (`bacteria_odb12`) |
-| **ECTyper Sketch DB** | *E. coli* / *Shigella* serotyping | Pass with `--ectyper_db` or omit to auto-download `EnteroRef_GTDBSketch_20231003_V2.msh` from Zenodo |
+| **ECTyper Sketch DB** | *E. coli* / *Shigella* serotyping | Pass with `--ectyper_db` or omit to auto-download `EnteroRef_GTDBSketch_20231003_V2.msh` from Zenodo (only when *Escherichia* samples are present) |
 | **ABRICATE Databases** | Virulence, plasmid, and AMR screening | Bundled with ABRicate (`vfdb`, `plasmidfinder`, `resfinder`, `ecoli_vf`) |
 | **PubMLST Schemes** | Sequence typing | Bundled with MLST |
+
+### Automatic Download & Caching
+
+When `--use_gambit` or `--use_kraken2` is enabled and `--gambit_db` / `--kraken_db` is **not** set, the workflow:
+
+1. Downloads the archive from `--gambit_db_url` / `--kraken_db_url` into `<db_cache>/archives/` (`GET_DB`).
+2. Verifies it against `--gambit_db_md5` / `--kraken_db_md5` when a checksum is given (a `md5:` prefix, as shown on Zenodo, is accepted) and tests the archive integrity.
+3. Extracts it into `<db_cache>/<archive_name>/` (`UNTAR_DB`).
+4. Reuses the extracted folder on every following run, so nothing is downloaded or extracted twice.
+
+Only the database of the selected classifier is fetched. The Kraken2 archive is several GB, so the first run takes longer. The default cache is `<projectDir>/test/references`. Set `--db_cache` to a shared location to reuse the databases across projects, and delete a cached folder to force a fresh download.
+
+### Using Your Own Databases
+
+`--gambit_db` and `--kraken_db` accept any of the following:
+
+| Value | Behaviour |
+|---|---|
+| Path to an extracted folder | Used as is |
+| Path or URL ending in `.tar.gz` | Extracted into `--db_cache`, then used |
+| *(omitted)* | Downloaded from `--gambit_db_url` / `--kraken_db_url` |
+
+Archives must contain **a single top-level folder** holding the database files. To build one from an existing database:
+
+```bash
+tar -czf gambit_db.tar.gz gambit/
+tar -czf k2_standard_08_GB_20260626.tar.gz k2_standard_08_GB_20260626/
+```
+
+For offline or cluster nodes without internet access, download the archives once, extract them, and pass the folders with `--gambit_db` / `--kraken_db`.
 
 ---
 
@@ -294,7 +333,7 @@ nextflow run main.nf \
 
 > [!IMPORTANT]
 > **Taxonomy Requirement for Downstream Typing**:
-> Downstream species-specific typing (Kleborate, ECTyper, SeqSero2, LisSero, Pasty) requires species resolution. Always activate either `--use_gambit` (along with `--gambit_db`) or `--use_kraken2` (along with `--kraken_db`).
+> Downstream species-specific typing (Kleborate, ECTyper, SeqSero2, LisSero, Pasty) requires species resolution. Always activate either `--use_gambit` or `--use_kraken2`. The matching database is downloaded automatically unless you provide `--gambit_db` or `--kraken_db`.
 
 ---
 
@@ -304,24 +343,37 @@ Profiles can be specified with `-profile` and combined with commas:
 
 - `docker`: Run processes inside containerized environments (recommended).
 - `conda`: Build and run processes using Conda environments in `envs/`.
-- `using_gambit`: Uses the bundled test GAMBIT database (`test/references/gambit`).
-- `using_kraken2`: Uses the bundled test Kraken2 database (`test/references/k2_standard_08_GB_20260626`).
-- `test`: Bundled test configuration.
+- `using_gambit`: Enables GAMBIT classification. The database is downloaded and cached on the first run unless `--gambit_db` is set.
+- `using_kraken2`: Enables Kraken2/Bracken classification. The database is downloaded and cached on the first run unless `--kraken_db` is set.
+- `test`: Uses the test samplesheet `test/data/sample_sheet.csv`, whose reads are fetched from Zenodo (see [Test Dataset](#test-dataset)).
 
 #### Example Commands
 
 **Run the test dataset with Docker and GAMBIT**:
 ```bash
-nextflow run main.nf \
-  -profile docker,using_gambit \
-  --samplesheet_csv "test/data/sample_sheet.csv"
+nextflow run main.nf -profile docker,test,using_gambit
 ```
 
 **Run the test dataset with Conda and Kraken2**:
 ```bash
+nextflow run main.nf -profile conda,test,using_kraken2
+```
+
+**Reuse databases you already have** (no download):
+```bash
 nextflow run main.nf \
-  -profile conda,using_kraken2 \
-  --samplesheet_csv "test/data/sample_sheet.csv"
+  -profile docker \
+  --samplesheet_csv "samplesheet.csv" \
+  --use_kraken2 \
+  --kraken_db "/path/to/k2_standard_08_GB_20260626"
+```
+
+**Keep downloaded databases in a shared location**:
+```bash
+nextflow run main.nf \
+  -profile docker,using_gambit \
+  --samplesheet_csv "samplesheet.csv" \
+  --db_cache "/shared/bactogenminer_db"
 ```
 
 **Run with Bakta annotation enabled**:
@@ -338,6 +390,18 @@ nextflow run main.nf \
 
 **Resume an interrupted run**:
 Add `-resume` to any command to continue from the last successful step using cached intermediate outputs.
+
+---
+
+## Test Dataset
+
+The repository only contains the test samplesheet (`test/data/sample_sheet.csv`). Its `fastq_1` / `fastq_2` columns are Zenodo download URLs, which Nextflow stages automatically, and the reference databases are downloaded by the pipeline as described in [Reference Databases](#reference-databases). No large file is stored in Git.
+
+```bash
+nextflow run main.nf -profile docker,test,using_gambit
+```
+
+The first run downloads the reads and the database. Later runs reuse the cached database from `--db_cache`.
 
 ---
 
@@ -374,12 +438,23 @@ Add `-resume` to any command to continue from the last successful step using cac
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `--use_gambit` | Boolean | `false` | Enable GAMBIT species identification |
-| `--gambit_db` | String | `null` | Directory path to GAMBIT reference database |
+| `--gambit_db` | String | `null` | GAMBIT database: extracted folder or `.tar.gz` (path or URL). Downloaded automatically from `--gambit_db_url` if omitted |
 | `--use_kraken2` | Boolean | `false` | Enable Kraken2 classification and Bracken re-estimation |
-| `--kraken_db` | String | `null` | Directory path to Kraken2 reference database |
+| `--kraken_db` | String | `null` | Kraken2 database: extracted folder or `.tar.gz` (path or URL). Downloaded automatically from `--kraken_db_url` if omitted |
 | `--bracken_class_level`| String | `'S'` | Taxonomic rank for Bracken abundance (`D`, `P`, `C`, `O`, `F`, `G`, `S`) |
 | `--kraken_read_len` | String | `'100'` | Read length parameter for Bracken estimation |
 | `--bracken_threshold` | String | `'0'` | Minimum reads threshold before abundance re-estimation |
+
+### Database Provisioning
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `--db_cache` | String | `<projectDir>/test/references` | Folder where downloaded archives (`archives/`) and extracted databases are cached |
+| `--gambit_db_url` | String | Zenodo `gambit_db.tar.gz` | Download URL of the GAMBIT database archive |
+| `--gambit_db_md5` | String | `5c2db34483fe72a710740a1eb087bb99` | Expected MD5 of the GAMBIT archive (`md5:` prefix accepted, empty to skip the check) |
+| `--kraken_db_url` | String | AWS `k2_standard_08_GB_20260626.tar.gz` | Download URL of the Kraken2 database archive |
+| `--kraken_db_md5` | String | `''` | Expected MD5 of the Kraken2 archive (empty to skip the check) |
+| `--test_data_dir` | String | `<projectDir>/test` | Base folder of the test files, used by the `test` profile |
 
 ### Genome Annotation
 
@@ -395,7 +470,7 @@ Add `-resume` to any command to continue from the last successful step using cac
 |---|---|---|---|
 | `--busco_lineage` | String | `'bacteria_odb12'` | BUSCO lineage dataset for genome completeness benchmarking |
 | `--mlst_scheme` | String | `null` | Explicit PubMLST scheme name (automatically detected if `null`) |
-| `--ectyper_db` | String | `null` | Optional path to local ECTyper database; auto-downloaded if omitted |
+| `--ectyper_db` | String | `null` | Optional path to a local ECTyper database; auto-downloaded from Zenodo (only when *Escherichia* samples are present) if omitted |
 
 ### Compute Resources
 

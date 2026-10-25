@@ -1,7 +1,7 @@
 #!/usr/bin/env nextflow
 
 include { SHORT_READS_SINGLE_PROCESSING }      from "./workflows/single_sample_pipeline.nf"
-include { MAKE_ASSEMBLY_SHEET      }      from "./modules/make_assembly_sheet.nf"
+include { MAKE_ASSEMBLY_SHEET           }      from "./modules/make_assembly_sheet.nf"
 
 def startMessage(){
         def c_reset  = "\033[0m"
@@ -33,6 +33,8 @@ def helpMessage() {
       Input: provide EITHER --reads (one sample) OR --samplesheet_csv (one or many samples).
       Taxonomy: enable at least one of --use_gambit / --use_kraken2, otherwise samples
       cannot be routed to species-specific tools (Kleborate, ECTyper, SeqSero2, LisSero, Pasty).
+      Databases: the GAMBIT / Kraken2 databases are downloaded automatically on the first run and
+      cached in --db_cache. Use --gambit_db / --kraken_db to supply your own (folder or .tar.gz).
 
     ${c_yellow}Examples:${c_reset}
       ${c_dim}# 1. Single sample (paired-end) with GAMBIT classification${c_reset}
@@ -52,7 +54,12 @@ def helpMessage() {
           --use_kraken2 --kraken_db "/path/to/k2_db" \\
           --use_bakta --bakta_db_type "light"
 
-      ${c_dim}# 4. Bundled test dataset${c_reset}
+      ${c_dim}# 4. Automatic database download (GAMBIT database fetched and cached on first run)${c_reset}
+      nextflow run main.nf -profile docker \\
+          --samplesheet_csv "samplesheet.csv" \\
+          --use_gambit
+
+      ${c_dim}# 5. Test dataset (reads and databases are fetched from Zenodo / public mirrors)${c_reset}
       nextflow run main.nf -profile test,docker,using_gambit
 
     --------------------------------------------------------------------------------
@@ -78,12 +85,20 @@ def helpMessage() {
 
     ${c_green}Taxonomic Classification:${c_reset}
       --use_gambit           Enable GAMBIT species identification [default: ${params.use_gambit}]
-      --gambit_db            Path to GAMBIT reference database directory [default: ${params.gambit_db}]
+      --gambit_db            GAMBIT database: folder or .tar.gz (path or URL) [default: ${params.gambit_db ?: 'auto-download'}]
       --use_kraken2          Enable Kraken2 + Bracken classification [default: ${params.use_kraken2}]
-      --kraken_db            Path to Kraken2 reference database directory [default: ${params.kraken_db}]
+      --kraken_db            Kraken2 database: folder or .tar.gz (path or URL) [default: ${params.kraken_db ?: 'auto-download'}]
       --bracken_class_level  Taxonomic rank for Bracken (D|P|C|O|F|G|S) [default: '${params.bracken_class_level}']
       --kraken_read_len      Read length for Bracken estimation [default: '${params.kraken_read_len}']
       --bracken_threshold    Minimum read threshold before re-estimation [default: '${params.bracken_threshold}']
+
+    ${c_green}Reference Databases (auto-download & cache):${c_reset}
+      --db_cache             Folder where database archives and extracted databases are cached [default: '${params.db_cache}']
+      --gambit_db_url        URL of the GAMBIT database archive (.tar.gz) [default: '${params.gambit_db_url}']
+      --gambit_db_md5        Expected MD5 of the GAMBIT archive, optional [default: '${params.gambit_db_md5 ?: 'none'}']
+      --kraken_db_url        URL of the Kraken2 database archive (.tar.gz) [default: '${params.kraken_db_url}']
+      --kraken_db_md5        Expected MD5 of the Kraken2 archive, optional [default: '${params.kraken_db_md5 ?: 'none'}']
+      (Downloads only happen when --gambit_db / --kraken_db is omitted; already-cached databases are reused.)
 
     ${c_green}Genome Annotation:${c_reset}
       --use_bakta            Use Bakta instead of the default Prokka [default: ${params.use_bakta}]
@@ -102,13 +117,14 @@ def helpMessage() {
     ${c_green}Execution Profiles (-profile, comma-separated):${c_reset}
       docker                 Run processes inside Docker containers
       conda                  Run processes using local Conda environments
-      test                   Use the bundled test samplesheet (test/data/sample_sheet.csv)
-      using_gambit           GAMBIT with the bundled test reference database
-      using_kraken2          Kraken2 with the bundled test reference database
+      test                   Use the test samplesheet (test/data/sample_sheet.csv; reads are fetched from Zenodo)
+      using_gambit           Enable GAMBIT (database auto-downloaded and cached unless --gambit_db is set)
+      using_kraken2          Enable Kraken2/Bracken (database auto-downloaded and cached unless --kraken_db is set)
 
     ${c_bold}================================================================================${c_reset}
     """
     }
+
 
 workflow {
     main:
@@ -129,6 +145,7 @@ workflow {
                         [row.sample_id, files]
                     }
         } else {
+            helpMessage()
             error "Please provide either --reads or --samplesheet_csv"
         }
         SHORT_READS_SINGLE_PROCESSING(reads_ch)

@@ -1,23 +1,29 @@
 #!/usr/bin/env nextflow
 
-include { KRAKEN2                      }      from "../modules/kraken2.nf"
-include { BRACKEN                      }      from "../modules/Bracken.nf"
-include { MLST                         }      from "../modules/mlst.nf"
-include { GAMBIT                       }      from "../modules/gambit.nf"
-include { ABRICATE as ABRICATE_VFDB    }      from "../modules/abricate.nf"
-include { ABRICATE as ABRICATE_AMR     }      from "../modules/abricate.nf"
-include { ABRICATE as ABRICATE_PLASMID }      from "../modules/abricate.nf"
-include { ABRICATE as ABRICATE_ECOLI   }      from "../modules/abricate.nf"
-include { GET_SPECIES_BRAKEN           }      from "../modules/get_species_braken.nf"
-include { GET_SPECIES_GAMBIT           }      from "../modules/get_species_gambit.nf"
-include { JOIN_SPECIES_TOOLS           }      from "../modules/join_species_with_tools.nf"
-include { KLEBORATE                    }      from "../modules/kleborate.nf"
-include { ECTYPER                      }      from "../modules/ectyper.nf"
-include { ECTYPER_GET_DB               }      from "../modules/ectyper_get_db.nf"
-include { SEQSERO2                     }      from "../modules/seqsero2.nf"
-include { LISSERO                      }      from "../modules/lissero.nf"
-include { PASTY                        }      from "../modules/pasty.nf"
-
+include { KRAKEN2                           }      from "../modules/kraken2.nf"
+include { BRACKEN                           }      from "../modules/Bracken.nf"
+include { MLST                              }      from "../modules/mlst.nf"
+include { GAMBIT                            }      from "../modules/gambit.nf"
+include { ABRICATE as ABRICATE_VFDB         }      from "../modules/abricate.nf"
+include { ABRICATE as ABRICATE_AMR          }      from "../modules/abricate.nf"
+include { ABRICATE as ABRICATE_PLASMID      }      from "../modules/abricate.nf"
+include { ABRICATE as ABRICATE_ECOLI        }      from "../modules/abricate.nf"
+include { GET_SPECIES_BRAKEN                }      from "../modules/get_species_braken.nf"
+include { GET_SPECIES_GAMBIT                }      from "../modules/get_species_gambit.nf"
+include { JOIN_SPECIES_TOOLS                }      from "../modules/join_species_with_tools.nf"
+include { KLEBORATE                         }      from "../modules/kleborate.nf"
+include { ECTYPER                           }      from "../modules/ectyper.nf"
+include { ECTYPER_GET_DB                    }      from "../modules/ectyper_get_db.nf"
+include { SEQSERO2                          }      from "../modules/seqsero2.nf"
+include { LISSERO                           }      from "../modules/lissero.nf"
+include { PASTY                             }      from "../modules/pasty.nf"
+include { UNTAR_DB as UNTAR_GAMBIT          }      from "../modules/processing_db"
+include { UNTAR_DB as UNTAR_KRAKEN          }      from "../modules/processing_db"
+include { PREPARE_DB as PREPARE_ECTYPER_DB  }      from "../modules/processing_db.nf"
+include { PREPARE_DB as PREPARE_KRAKEN_DB   }      from "../modules/processing_db.nf"
+include { PREPARE_DB as PREPARE_GAMBIT_DB   }      from "../modules/processing_db.nf"
+include { GET_DB as GET_GAMBIT_DB           }      from '../modules/processing_db.nf'
+include { GET_DB as GET_KRAKEN_DB           }      from '../modules/processing_db.nf'
 
 workflow SPECIES_CLASSIFICATION {
     take:
@@ -29,7 +35,16 @@ workflow SPECIES_CLASSIFICATION {
 
         // Species classification 
         if (params.use_gambit) {
-            GAMBIT(scafolds_ch, file(params.gambit_db))
+            if (params.gambit_db) {
+                PREPARE_GAMBIT_DB(Channel.value(params.gambit_db))
+                gambit_db_ch = PREPARE_GAMBIT_DB.out.db
+            } else {
+                GET_GAMBIT_DB(Channel.of(tuple('gambit_db', params.gambit_db_url, params.gambit_db_md5)))
+                UNTAR_GAMBIT(GET_GAMBIT_DB.out.db)
+                gambit_db_ch = UNTAR_GAMBIT.out.db
+            }
+            
+            GAMBIT(scafolds_ch, gambit_db_ch)
             GET_SPECIES_GAMBIT(GAMBIT.out.gambit_report)
             species_name = GET_SPECIES_GAMBIT.out.species_name
             gambit_report_ch  = GAMBIT.out.gambit_report
@@ -38,8 +53,17 @@ workflow SPECIES_CLASSIFICATION {
             kraken2_output_ch = channel.empty()
             kraken2_report_ch = channel.empty()
         } else {
-            KRAKEN2(scafolds_ch, file(params.kraken_db))
-            BRACKEN(KRAKEN2.out.kraken_out, file(params.kraken_db))
+            if (params.kraken_db) {
+                PREPARE_KRAKEN_DB(Channel.value(params.kraken_db))
+                kraken_db_ch = PREPARE_KRAKEN_DB.out.db
+            } else {
+                GET_KRAKEN_DB(Channel.of(tuple('k2_standard_08_GB_20260626', params.kraken_db_url, params.kraken_db_md5)))
+                UNTAR_KRAKEN(GET_KRAKEN_DB.out.db)
+                kraken_db_ch = UNTAR_KRAKEN.out.db
+            }
+
+            KRAKEN2(scafolds_ch, kraken_db_ch)
+            BRACKEN(KRAKEN2.out.kraken_out, kraken_db_ch)
             GET_SPECIES_BRAKEN(BRACKEN.out.bracken_output)
             species_name = GET_SPECIES_BRAKEN.out.species_name
             gambit_report_ch  = channel.empty()
@@ -86,13 +110,18 @@ workflow SEROTYPING {
             routed.kleborate.map { sn, sc, sp, tl -> tuple(sn, sc, sp) }
         )
         ecoli_only = routed.kleborate.filter { sn, sc, sp, tl -> sp == "escherichia" }
-        ABRICATE_ECOLI(ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) }, "ecoli_vf")
-        if(params.ectyper_db){
-            ECTYPER(ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) }, file(params.ectyper_db))
+        ecoli_fa   = ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) }
+
+        ABRICATE_ECOLI(ecoli_fa, "ecoli_vf")
+
+        if (params.ectyper_db) {
+            ectyper_db_ch = Channel.value(file(params.ectyper_db))
         } else {
-            ECTYPER_GET_DB()
-            ECTYPER(ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) }, ECTYPER_GET_DB.out.ectyper_db)
+            ECTYPER_GET_DB(ecoli_only.first().map { true })
+            ectyper_db_ch = ECTYPER_GET_DB.out.ectyper_db
         }
+
+        ECTYPER(ecoli_fa, ectyper_db_ch)
 
         SEQSERO2(routed.seqsero.map {sn, sc, sp, tl -> tuple(sn, sc)}, "4")//for illumina assembly fasta
         //SEQSERO2(routed.seqsero.map {sn, sc, sp, tl -> tuple(sn, sc)}, "5")//for Long Reads assembly fasta
