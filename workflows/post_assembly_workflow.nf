@@ -5,6 +5,8 @@ include { BRACKEN                           }      from "../modules/Bracken.nf"
 include { MLST                              }      from "../modules/mlst.nf"
 include { GAMBIT                            }      from "../modules/gambit.nf"
 include { ABRICATE as ABRICATE_VFDB         }      from "../modules/abricate.nf"
+include { ABRICATE as ABRICATE_VFDB_LISSERO }      from "../modules/abricate.nf"
+include { ABRICATE as ABRICATE_AMR_LISSERO  }      from "../modules/abricate.nf"
 include { ABRICATE as ABRICATE_AMR          }      from "../modules/abricate.nf"
 include { ABRICATE as ABRICATE_PLASMID      }      from "../modules/abricate.nf"
 include { ABRICATE as ABRICATE_ECOLI        }      from "../modules/abricate.nf"
@@ -127,6 +129,9 @@ workflow SEROTYPING {
         //SEQSERO2(routed.seqsero.map {sn, sc, sp, tl -> tuple(sn, sc)}, "5")//for Long Reads assembly fasta
 
         LISSERO(routed.lissero.map {sn, sc, sp, tl -> tuple(sn, sc)})
+        ABRICATE_VFDB_LISSERO(routed.lissero.map { sn, sc, sp, tl -> tuple(sn, sc) }, "vfdb")
+        ABRICATE_AMR_LISSERO(routed.lissero.map { sn, sc, sp, tl -> tuple(sn, sc) }, "resfinder")
+
         PASTY(routed.pasty.map {sn, sc, sp, tl -> tuple(sn, sc)})
 
         ABRICATE_AMR(routed.other.map { sn, sc, sp, tl -> tuple(sn, sc) }, "resfinder")
@@ -142,5 +147,6 @@ workflow SEROTYPING {
         abricate_ecoli        = ABRICATE_ECOLI.out.abricate_results
         abricate_amr          = ABRICATE_AMR.out.abricate_results
         abricate_vfdb         = ABRICATE_VFDB.out.abricate_results
+        abricate_vfdb_lissero = ABRICATE_VFDB_LISSERO.out.abricate_results
         abricate_plasmid      = ABRICATE_PLASMID.out.abricate_results
 }

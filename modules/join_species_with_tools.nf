@@ -33,8 +33,7 @@ process JOIN_SPECIES_TOOLS{
         match(species, \$1) > 0 { print \$2","\$3; found=1; exit }
         END { if (!found) exit 1 }
     ' '${projectDir}/meta_data/species_tools.csv') || {
-        echo "ERROR: no matching tools/group found for species '${species_name}'" >&2
-        exit 1
+        result="other,other"
     }
 
     sp_group=\$(echo "\${result}" | cut -d',' -f1)
