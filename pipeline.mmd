@@ -1,11 +1,11 @@
 %%metro title: BactogenMiner
-%%metro style: dark
+%%metro style: light
 %%metro line: main | Main (Reads to Assembly) | #2db572
 %%metro line: qa | Assembly QC and Annotation | #0570b0
 %%metro line: taxonomy | Taxonomy and MLST | #8e44ad
 %%metro line: typing | Species-Specific Typing and AMR | #e84a5f
 %%metro line: plasmid | Plasmid Screening (all samples) | #ff8c42
-%%metro line: dbfetch | Database Fetch (if none given) | #f5c542
+%%metro line: dbfetch | Database Prepare or Download | #f5c542
 %%metro line: filtered | Failed (warning) / Status | #8a8f98
 %%metro line: phylogeny | Phylogeny Manifest | #17a2b8
 
@@ -52,13 +52,18 @@ graph LR
 
     subgraph tax_sec [Species Classification]
         mlst([Mlst])
+        gambit_db([Gambit DB - Prepare or Download])
         gambit([Gambit (use_gambit)])
         get_species_gambit([Species Gambit])
+        kraken_db([Kraken2 DB - Prepare or Download])
         kraken2([Kraken2 (default)])
         bracken([Bracken])
         get_species_bracken([Species Bracken])
 
+        gambit_db -->|dbfetch| gambit
         gambit -->|taxonomy| get_species_gambit
+        kraken_db -->|dbfetch| kraken2
+        kraken_db -->|dbfetch| bracken
         kraken2 -->|taxonomy| bracken
         bracken -->|taxonomy| get_species_bracken
     end
@@ -72,6 +77,8 @@ graph LR
         ectyper([Ectyper - Escherichia, Shigella])
         seqsero2([Seqsero2 - Salmonella])
         lissero([Lissero - Listeria])
+        abricate_vfdb_lissero([Abricate VFDB - Listeria])
+        abricate_amr_lissero([Abricate ResFinder - Listeria])
         pasty([Pasty - Pseudomonas aeruginosa])
         abricate_amr([Abricate ResFinder - All Other Species])
         abricate_vfdb([Abricate VFDB - All Other Species])
@@ -81,6 +88,8 @@ graph LR
         route -->|typing| ectyper
         route -->|typing| seqsero2
         route -->|typing| lissero
+        route -->|typing| abricate_vfdb_lissero
+        route -->|typing| abricate_amr_lissero
         route -->|typing| pasty
         route -->|typing| abricate_amr
         route -->|typing| abricate_vfdb
