@@ -52,48 +52,55 @@ graph LR
 
     subgraph tax_sec [Species Classification]
         mlst([Mlst])
-        gambit_db([Gambit DB - Prepare or Download])
-        gambit([Gambit (use_gambit)])
+        gambit([Gambit (use_gambit) - DB prepared or downloaded])
         get_species_gambit([Species Gambit])
-        kraken_db([Kraken2 DB - Prepare or Download])
-        kraken2([Kraken2 (default)])
+        kraken2([Kraken2 (default) - DB prepared or downloaded])
         bracken([Bracken])
         get_species_bracken([Species Bracken])
 
-        gambit_db -->|dbfetch| gambit
         gambit -->|taxonomy| get_species_gambit
-        kraken_db -->|dbfetch| kraken2
-        kraken_db -->|dbfetch| bracken
         kraken2 -->|taxonomy| bracken
         bracken -->|taxonomy| get_species_bracken
     end
 
-    subgraph typing_sec [Serotyping]
+    subgraph plasmid_sec [Plasmid Screening]
         plasmidfinder([Abricate PlasmidFinder])
+    end
+
+    subgraph route_sec [Species Routing]
         route([Join Species Tools])
-        ectyper_db([Ectyper DB (if none given)])
+    end
+
+    subgraph kleb_sec [Klebsiella, Escherichia and Shigella]
         kleborate([Kleborate - Klebsiella (KPSC, KOSC), Escherichia, Shigella])
         abricate_ecoli([Abricate Ecoli VF - Escherichia, Shigella])
+        ectyper_db([Ectyper DB (if none given)])
         ectyper([Ectyper - Escherichia, Shigella])
-        seqsero2([Seqsero2 - Salmonella])
-        lissero([Lissero - Listeria])
-        abricate_vfdb_lissero([Abricate VFDB - Listeria])
-        abricate_amr_lissero([Abricate ResFinder - Listeria])
-        pasty([Pasty - Pseudomonas aeruginosa])
-        abricate_amr([Abricate ResFinder - All Other Species])
-        abricate_vfdb([Abricate VFDB - All Other Species])
 
-        route -->|typing| kleborate
-        route -->|typing| abricate_ecoli
-        route -->|typing| ectyper
-        route -->|typing| seqsero2
-        route -->|typing| lissero
-        route -->|typing| abricate_vfdb_lissero
-        route -->|typing| abricate_amr_lissero
-        route -->|typing| pasty
-        route -->|typing| abricate_amr
-        route -->|typing| abricate_vfdb
         ectyper_db -->|dbfetch| ectyper
+    end
+
+    subgraph salm_sec [Salmonella]
+        seqsero2([Seqsero2])
+        abricate_vfdb_salm([Abricate VFDB])
+        abricate_amr_salm([Abricate ResFinder])
+    end
+
+    subgraph list_sec [Listeria]
+        lissero([Lissero])
+        abricate_vfdb_list([Abricate VFDB])
+        abricate_amr_list([Abricate ResFinder])
+    end
+
+    subgraph pseud_sec [Pseudomonas aeruginosa]
+        pasty([Pasty])
+        abricate_vfdb_pasty([Abricate VFDB])
+        abricate_amr_pasty([Abricate ResFinder])
+    end
+
+    subgraph default_sec [All Other Species]
+        abricate_amr([Abricate ResFinder])
+        abricate_vfdb([Abricate VFDB])
     end
 
     %% Inter-section edges
@@ -114,3 +121,17 @@ graph LR
     spades -->|filtered| status_file
     get_species_gambit -->|typing| route
     get_species_bracken -->|typing| route
+    route -->|typing| kleborate
+    route -->|typing| abricate_ecoli
+    route -->|typing| ectyper
+    route -->|typing| seqsero2
+    route -->|typing| abricate_vfdb_salm
+    route -->|typing| abricate_amr_salm
+    route -->|typing| lissero
+    route -->|typing| abricate_vfdb_list
+    route -->|typing| abricate_amr_list
+    route -->|typing| pasty
+    route -->|typing| abricate_vfdb_pasty
+    route -->|typing| abricate_amr_pasty
+    route -->|typing| abricate_amr
+    route -->|typing| abricate_vfdb

@@ -1,31 +1,25 @@
 #!/usr/bin/env nextflow
 
-include { KRAKEN2                           }      from "../modules/kraken2.nf"
-include { BRACKEN                           }      from "../modules/Bracken.nf"
-include { MLST                              }      from "../modules/mlst.nf"
-include { GAMBIT                            }      from "../modules/gambit.nf"
-include { ABRICATE as ABRICATE_VFDB         }      from "../modules/abricate.nf"
-include { ABRICATE as ABRICATE_VFDB_LISSERO }      from "../modules/abricate.nf"
-include { ABRICATE as ABRICATE_AMR_LISSERO  }      from "../modules/abricate.nf"
-include { ABRICATE as ABRICATE_AMR          }      from "../modules/abricate.nf"
-include { ABRICATE as ABRICATE_PLASMID      }      from "../modules/abricate.nf"
-include { ABRICATE as ABRICATE_ECOLI        }      from "../modules/abricate.nf"
-include { GET_SPECIES_BRAKEN                }      from "../modules/get_species_braken.nf"
-include { GET_SPECIES_GAMBIT                }      from "../modules/get_species_gambit.nf"
-include { JOIN_SPECIES_TOOLS                }      from "../modules/join_species_with_tools.nf"
-include { KLEBORATE                         }      from "../modules/kleborate.nf"
-include { ECTYPER                           }      from "../modules/ectyper.nf"
-include { ECTYPER_GET_DB                    }      from "../modules/ectyper_get_db.nf"
-include { SEQSERO2                          }      from "../modules/seqsero2.nf"
-include { LISSERO                           }      from "../modules/lissero.nf"
-include { PASTY                             }      from "../modules/pasty.nf"
-include { UNTAR_DB as UNTAR_GAMBIT          }      from "../modules/processing_db"
-include { UNTAR_DB as UNTAR_KRAKEN          }      from "../modules/processing_db"
-include { PREPARE_DB as PREPARE_ECTYPER_DB  }      from "../modules/processing_db.nf"
-include { PREPARE_DB as PREPARE_KRAKEN_DB   }      from "../modules/processing_db.nf"
-include { PREPARE_DB as PREPARE_GAMBIT_DB   }      from "../modules/processing_db.nf"
-include { GET_DB as GET_GAMBIT_DB           }      from '../modules/processing_db.nf'
-include { GET_DB as GET_KRAKEN_DB           }      from '../modules/processing_db.nf'
+include { KRAKEN2                           } from "../modules/kraken2.nf"
+include { BRACKEN                           } from "../modules/Bracken.nf"
+include { MLST                              } from "../modules/mlst.nf"
+include { GAMBIT                            } from "../modules/gambit.nf"
+include { GET_SPECIES_BRAKEN                } from "../modules/get_species_braken.nf"
+include { GET_SPECIES_GAMBIT                } from "../modules/get_species_gambit.nf"
+include { UNTAR_DB as UNTAR_GAMBIT          } from "../modules/processing_db"
+include { UNTAR_DB as UNTAR_KRAKEN          } from "../modules/processing_db"
+include { PREPARE_DB as PREPARE_ECTYPER_DB  } from "../modules/processing_db.nf"
+include { PREPARE_DB as PREPARE_KRAKEN_DB   } from "../modules/processing_db.nf"
+include { PREPARE_DB as PREPARE_GAMBIT_DB   } from "../modules/processing_db.nf"
+include { GET_DB as GET_GAMBIT_DB           } from '../modules/processing_db.nf'
+include { GET_DB as GET_KRAKEN_DB           } from '../modules/processing_db.nf'
+include { JOIN_SPECIES_TOOLS                } from "../modules/join_species_with_tools.nf"
+include { ABRICATE as ABRICATE_PLASMID      } from "../modules/abricate.nf"
+include { KLEB_ECOLI_SEROTYPING             } from "../sub-workflows/serotyping/kleb_ecoli_serotyping.nf"
+include { SALMONELLA_SEROTYPING             } from "../sub-workflows/serotyping/salmonella_serotyping.nf"
+include { LISTERIA_SEROTYPING               } from "../sub-workflows/serotyping/listeria_serotyping.nf"
+include { PSEUDOMONAS_SEROTYPING            } from "../sub-workflows/serotyping/pseudomonas_serotyping.nf"
+include { DEFAULT_SEROTYPING                } from "../sub-workflows/serotyping/default_serotyping.nf"
 
 workflow SPECIES_CLASSIFICATION {
     take:
@@ -88,65 +82,52 @@ workflow SPECIES_CLASSIFICATION {
 
 workflow SEROTYPING {
     take:
-        scafolds_ch  // channel: [ val(sample_name), path(scafolds) ]
-        species_name // channel: [ val(sample_name), val(species_name)  ]
+        scafolds_ch   // channel: [ val(sample_name), path(scafolds) ]
+        species_name  // channel: [ val(sample_name), val(species_name) ]
 
     main:
-        //Species specific screening genome assemblies
         JOIN_SPECIES_TOOLS(species_name)
-        sp_group_ch = JOIN_SPECIES_TOOLS.out.sp_group   
-        tools_ch    = JOIN_SPECIES_TOOLS.out.tools      
 
         routed = scafolds_ch
-            .join(sp_group_ch)      
-            .join(tools_ch)         
-            .branch { sample_name, scafolds, sp_group, tools ->
-                kleborate: tools == "kleborate"
-                seqsero:   tools == "SeqSero2"
-                lissero:   tools == "LisSero"
-                pasty:     tools == "Pasty"
+            .join(JOIN_SPECIES_TOOLS.out.sp_group)
+            .join(JOIN_SPECIES_TOOLS.out.tools)
+            .branch { sn, sc, sp, tl ->
+                kleborate: tl == "kleborate"
+                seqsero:   tl == "SeqSero2"
+                lissero:   tl == "LisSero"
+                pasty:     tl == "Pasty"
                 other:     true
             }
 
-        KLEBORATE(
-            routed.kleborate.map { sn, sc, sp, tl -> tuple(sn, sc, sp) }
-        )
-        ecoli_only = routed.kleborate.filter { sn, sc, sp, tl -> sp == "escherichia" }
-        ecoli_fa   = ecoli_only.map { sn, sc, sp, tl -> tuple(sn, sc) }
+        KLEB_ECOLI_SEROTYPING(routed.kleborate.map { sn, sc, sp, tl -> tuple(sn, sc, sp) })
+        SALMONELLA_SEROTYPING(routed.seqsero.map   { sn, sc, sp, tl -> tuple(sn, sc) })
+        LISTERIA_SEROTYPING(routed.lissero.map     { sn, sc, sp, tl -> tuple(sn, sc) })
+        PSEUDOMONAS_SEROTYPING(routed.pasty.map    { sn, sc, sp, tl -> tuple(sn, sc) })
+        DEFAULT_SEROTYPING(routed.other.map        { sn, sc, sp, tl -> tuple(sn, sc) })
 
-        ABRICATE_ECOLI(ecoli_fa, "ecoli_vf")
-
-        if (params.ectyper_db) {
-            ectyper_db_ch = Channel.value(file(params.ectyper_db))
-        } else {
-            ECTYPER_GET_DB(ecoli_only.first().map { true })
-            ectyper_db_ch = ECTYPER_GET_DB.out.ectyper_db
-        }
-
-        ECTYPER(ecoli_fa, ectyper_db_ch)
-
-        SEQSERO2(routed.seqsero.map {sn, sc, sp, tl -> tuple(sn, sc)}, "4")//for illumina assembly fasta
-        //SEQSERO2(routed.seqsero.map {sn, sc, sp, tl -> tuple(sn, sc)}, "5")//for Long Reads assembly fasta
-
-        LISSERO(routed.lissero.map {sn, sc, sp, tl -> tuple(sn, sc)})
-        ABRICATE_VFDB_LISSERO(routed.lissero.map { sn, sc, sp, tl -> tuple(sn, sc) }, "vfdb")
-        ABRICATE_AMR_LISSERO(routed.lissero.map { sn, sc, sp, tl -> tuple(sn, sc) }, "resfinder")
-
-        PASTY(routed.pasty.map {sn, sc, sp, tl -> tuple(sn, sc)})
-
-        ABRICATE_AMR(routed.other.map { sn, sc, sp, tl -> tuple(sn, sc) }, "resfinder")
-        ABRICATE_VFDB(routed.other.map { sn, sc, sp, tl -> tuple(sn, sc) }, "vfdb")
+        // Universal: all samples
         ABRICATE_PLASMID(scafolds_ch, "plasmidfinder")
-    
+
     emit:
-        kleborate             = KLEBORATE.out.kleborate_results
-        ectyper               = ECTYPER.out.ectyper_results
-        seqsero2              = SEQSERO2.out.seqsero2_results
-        lissero               = LISSERO.out.lissero_results
-        pasty                 = PASTY.out.pasty_results
-        abricate_ecoli        = ABRICATE_ECOLI.out.abricate_results
-        abricate_amr          = ABRICATE_AMR.out.abricate_results
-        abricate_vfdb         = ABRICATE_VFDB.out.abricate_results
-        abricate_vfdb_lissero = ABRICATE_VFDB_LISSERO.out.abricate_results
-        abricate_plasmid      = ABRICATE_PLASMID.out.abricate_results
+        //KpSC, KoSC, Ecoli & Shigella
+        kleborate              = KLEB_ECOLI_SEROTYPING.out.kleborate
+        ectyper                = KLEB_ECOLI_SEROTYPING.out.ectyper
+        abricate_ecoli         = KLEB_ECOLI_SEROTYPING.out.abricate_ecoli
+        //Salmonella 
+        seqsero2               = SALMONELLA_SEROTYPING.out.seqsero2
+        abricate_vfdb_seqsero2 = SALMONELLA_SEROTYPING.out.abricate_vfdb_seqsero2
+        abricate_amr_seqsero2  = SALMONELLA_SEROTYPING.out.abricate_amr_seqsero2
+        //Listeria 
+        lissero                = LISTERIA_SEROTYPING.out.lissero
+        abricate_vfdb_lissero  = LISTERIA_SEROTYPING.out.abricate_vfdb_lissero
+        abricate_amr_lissero   = LISTERIA_SEROTYPING.out.abricate_amr_lissero
+        //Pseudomonas
+        pasty                  = PSEUDOMONAS_SEROTYPING.out.pasty
+        abricate_vfdb_pasty    = LISTERIA_SEROTYPING.out.abricate_vfdb_pasty
+        abricate_amr_pasty     = LISTERIA_SEROTYPING.out.abricate_amr_pasty
+        //Other species
+        abricate_amr_default   = DEFAULT_SEROTYPING.out.abricate_amr
+        abricate_vfdb_default  = DEFAULT_SEROTYPING.out.abricate_vfdb
+        //Plasmids
+        abricate_plasmid_all   = ABRICATE_PLASMID.out.abricate_results
 }
