@@ -123,8 +123,8 @@ workflow SEROTYPING {
         abricate_amr_lissero   = LISTERIA_SEROTYPING.out.abricate_amr_lissero
         //Pseudomonas
         pasty                  = PSEUDOMONAS_SEROTYPING.out.pasty
-        abricate_vfdb_pasty    = LISTERIA_SEROTYPING.out.abricate_vfdb_pasty
-        abricate_amr_pasty     = LISTERIA_SEROTYPING.out.abricate_amr_pasty
+        abricate_vfdb_pasty    = PSEUDOMONAS_SEROTYPING.out.abricate_vfdb_pasty
+        abricate_amr_pasty     = PSEUDOMONAS_SEROTYPING.out.abricate_amr_pasty
         //Other species
         abricate_amr_default   = DEFAULT_SEROTYPING.out.abricate_amr
         abricate_vfdb_default  = DEFAULT_SEROTYPING.out.abricate_vfdb

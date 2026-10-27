@@ -41,8 +41,27 @@ process SPADES {
         mv spades/assembly_graph.fastg 'spades/${sample_name}.fastg'
         ASSEMBLY_END=PASS
     else
-        echo "SPAdes failed for ${sample_name} (exit \$status), see spades/spades.log" >&2
-        ASSEMBLY_END=FAIL
+        log=spades/spades.log
+        reason=""
+
+        if [ -s "\$log" ]; then
+            # 1) Wrapper-level error: "== Error ==  <message>"
+            reason=\$(grep -m1 -E '== Error ==' "\$log" | sed -E 's/.*== Error ==[[:space:]]*//')
+
+            # 2) Fallback: first C++ stage ERROR line
+            [ -z "\$reason" ] && reason=\$(grep -m1 -E '\\bERROR\\b' "\$log" | sed -E 's/^.*ERROR[[:space:]]*//')
+
+            # 3) Fallback: last non-empty line of the log
+            [ -z "\$reason" ] && reason=\$(grep -v '^[[:space:]]*\$' "\$log" | tail -n1)
+        fi
+
+        # Fallbacks if the log is missing/empty
+        if [ -z "\$reason" ]; then
+            [ \$status -ne 0 ] && reason="spades_exit_\$status" || reason="empty_or_missing_scaffolds"
+        fi
+
+        echo "SPAdes failed for ${sample_name}: \$reason" >&2
+        ASSEMBLY_END="FAIL:\$reason"
     fi
     """
 }
