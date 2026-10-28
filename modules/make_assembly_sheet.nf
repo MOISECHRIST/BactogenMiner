@@ -26,7 +26,7 @@ process MAKE_ASSEMBLY_SHEET {
     def rows = samples.collect { sn, sc -> "${sn}\t${sc.toRealPath()}" }.join("\n")
     """
     cat > assembly_sample_sheet.txt <<'EOF'
-${rows}
-EOF
+    ${rows}
+    EOF
     """
 }

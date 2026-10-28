@@ -32,7 +32,7 @@ process SPADES {
     mkdir -p spades
 
     set +e
-    spades.py ${input_reads} -o spades --threads ${task.cpus}
+    spades.py --isolate ${input_reads} -o spades --threads ${task.cpus}
     status=\$?
     set -e
 

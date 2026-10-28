@@ -26,6 +26,6 @@ process PROKKA{
     script:
     """
     prokka --outdir Prokka --prefix '${sample_name}' \\
-     --cpus '${task.cpus}' '${scafolds}'
+     --cpus '${task.cpus}' '${scafolds}' --centre X --compliant 
     """
 }

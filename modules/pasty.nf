@@ -26,6 +26,6 @@ process PASTY{
     script:
     """
     pasty --input ${scafolds} --outdir Pasty \\
-     --pathotype --prefix ${sample_name}
+     --prefix ${sample_name}
     """
 }

@@ -125,6 +125,23 @@ def helpMessage() {
     """
     }
 
+def resourcesSummary(){
+  def c_reset  = "\033[0m"
+  def c_dim    = "\033[2m"
+  def c_bold   = "\033[1m"
+  def c_cyan   = "\033[36m"
+  def c_yellow = "\033[33m"
+  def c_green  = "\033[32m"
+
+  log.info """
+  ${c_bold}${c_green}Resource Summary${c_reset}
+  ${c_bold}${c_green}****************${c_reset}
+  ${c_bold}${c_green}> Maximum CPU cores per task :${c_reset} ${c_yellow} ${params.max_cpus} ${c_reset}
+  ${c_bold}${c_green}> Maximum memory per task    :${c_reset} ${c_yellow} '${params.max_mem}' ${c_reset}
+  ${c_bold}${c_green}> Working directory          :${c_reset} ${c_yellow} ${projectDir} ${c_reset}
+  """
+}
+
 
 workflow {
     main:
@@ -148,6 +165,7 @@ workflow {
             helpMessage()
             error "Please provide either --reads or --samplesheet_csv"
         }
+        resourcesSummary()
         SHORT_READS_SINGLE_PROCESSING(reads_ch)
         MAKE_ASSEMBLY_SHEET(SHORT_READS_SINGLE_PROCESSING.out.scafolds.collect(flat: false))
 }
